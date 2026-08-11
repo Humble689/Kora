@@ -4,31 +4,18 @@ namespace app\models;
 
 use Yii;
 
-/**
- * This is the model class for table "schools".
- *
- * @property int $id
- * @property string $name
- * @property string $bank_account
- * @property string|null $created_at
- *
- * @property Students[] $students
- */
+
 class Schools extends \yii\db\ActiveRecord
 {
 
 
-    /**
-     * {@inheritdoc}
-     */
+   
     public static function tableName()
     {
         return 'schools';
     }
 
-    /**
-     * {@inheritdoc}
-     */
+   
 
     public $admin_username;
     public $admin_password;

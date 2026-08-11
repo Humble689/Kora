@@ -71,7 +71,7 @@ class SiteController extends Controller
                     ],
                     //  RULE 3: Legacy Bursar Accounting (Keep intact)
                     [
-                        'actions' => ['bursar', 'register-student', 'edit-student', 'delete-student', 'mark-no-show', 'export-students', 'export-receipts', 'term-rollover'],
+                        'actions' => ['bursar', 'register-student', 'edit-student', 'delete-student', 'mark-no-show', 'export-students', 'export-receipts', 'term-rollover','students-directory',],
                         'allow' => true,
                         'roles' => ['@'],
                         'matchCallback' => function ($rule, $action) {
@@ -1426,7 +1426,7 @@ public function actionProcessPayment()
                 return $this->redirect(['site/dos-review', 'class_level' => $classLevel, 'term' => $term]);
             }
 
-                        // Save the D.O.S rejection notes strictly inside the new feedback box
+                // Save the D.O.S rejection notes strictly inside the new feedback box
             Yii::$app->db->createCommand()->update('academic_marks', [
                 'status' => 'REJECTED_AMEND',
                 'dos_feedback' => new \yii\db\Expression(":dosComment::text", [':dosComment' => $dosComment])

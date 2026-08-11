@@ -6,12 +6,10 @@ declare(strict_types=1);
 /** @var app\models\LoginForm $model */
 
 use yii\bootstrap5\Html;
+use yii\bootstrap5\ActiveForm;
 ?>
 
 <div class="login-page d-flex align-items-center justify-content-center">
-    
-
-
 
 <div class="container-fluid min-vh-100 d-flex align-items-center justify-content-center login-page-bg">
     <div class="row w-100 justify-content-center">
@@ -35,7 +33,7 @@ use yii\bootstrap5\Html;
 
                             <div class="login-panel-content">
                                 <?= Html::img(
-                                    Yii::getAlias('@web/images//yii3_full_white_for_dark.svg'),
+                                    Yii::getAlias('@web/images/yii3_full_white_for_dark.svg'),
                                     [
                                         'alt' => 'KORA',
                                         'height' => 72,
@@ -58,8 +56,20 @@ use yii\bootstrap5\Html;
                     </div>
 
                     <!-- Login Form -->
-                    <div class="col-lg-7 bg-red">
+                    <div class="col-lg-7 bg-white text-dark" style="background-color: #ffffff !important; color: #212529 !important;">
                         <div class="p-4 p-md-5">
+                            
+                            <!-- Back Button -->
+                            <div class="d-flex justify-content-end mb-4">
+                                <?= Html::a(
+                                    'Back to Parent Portal',
+                                    ['site/index'],
+                                    [
+                                        'class' => 'btn btn-outline-secondary btn-sm rounded-pill px-4 fw-semibold login-back-btn',
+                                        'style' => 'color: #495057 !important; border-color: #6c757d !important;'
+                                    ]
+                                ) ?>
+                            </div>
 
                             <!-- Mobile Logo -->
                             <div class="d-lg-none mb-4">
@@ -83,30 +93,27 @@ use yii\bootstrap5\Html;
                                         'class' => 'me-3 rounded-2',
                                     ],
                                 ) ?>
-                                <span class="h1 fw-bold mb-0">KORA</span>
+                                <span class="h1 fw-bold mb-0 text-dark" style="color: #212529 !important;">KORA</span>
                             </div>
 
-                            <h5 class="fw-normal mb-4 pb-2 login-subtitle">
+                            <h5 class="fw-normal mb-4 pb-2" style="color: #212529 !important; font-weight: 500;">
                                 Sign into your account
                             </h5>
 
-                            <?php
-
-                                use yii\bootstrap5\ActiveForm;
-
-                                $form = ActiveForm::begin([
+                            <?php $form = ActiveForm::begin([
                                 'id' => 'login-form',
                             ]); ?>
 
                             <!-- Username -->
-                            <div class="mb-4 bg-grey">
+                            <div class="mb-4">
                                 <?= $form->field($model, 'username', [
                                     'options' => [
                                         'class' => 'form-outline',
                                     ],
                                     'template' => "{input}{label}{error}",
                                     'inputOptions' => [
-                                        'class' => 'form-control form-control-lg',
+                                        'class' => 'form-control form-control-lg border',
+                                        'style' => 'background-color: #ffffff !important; color: #212529 !important; border-color: #ced4da !important;',
                                         'placeholder' => ' ',
                                         'autofocus' => true,
                                     ],
@@ -114,6 +121,7 @@ use yii\bootstrap5\Html;
                                     'Username',
                                     [
                                         'class' => 'form-label',
+                                        'style' => 'color: #495057 !important;'
                                     ]
                                 ) ?>
                             </div>
@@ -126,13 +134,15 @@ use yii\bootstrap5\Html;
                                     ],
                                     'template' => "{input}{label}{error}",
                                     'inputOptions' => [
-                                        'class' => 'form-control form-control-lg',
+                                        'class' => 'form-control form-control-lg border',
+                                        'style' => 'background-color: #ffffff !important; color: #212529 !important; border-color: #ced4da !important;',
                                         'placeholder' => ' ',
                                     ],
                                 ])->passwordInput()->label(
                                     'Password',
                                     [
                                         'class' => 'form-label',
+                                        'style' => 'color: #495057 !important;'
                                     ]
                                 ) ?>
                             </div>
@@ -141,6 +151,8 @@ use yii\bootstrap5\Html;
                             <div class="mb-4">
                                 <?= $form->field($model, 'rememberMe')->checkbox([
                                     'label' => 'Remember me',
+                                    'class' => 'form-check-input',
+                                    'labelOptions' => ['style' => 'color: #212529 !important;']
                                 ]) ?>
                             </div>
 
@@ -149,7 +161,7 @@ use yii\bootstrap5\Html;
                                 <?= Html::submitButton(
                                     'Login',
                                     [
-                                        'class' => 'btn btn-dark btn-lg w-100 rounded-2',
+                                        'class' => 'btn btn-primary btn-lg w-100 rounded-2 text-white fw-bold',
                                         'name' => 'login-button',
                                     ],
                                 ) ?>
@@ -158,19 +170,27 @@ use yii\bootstrap5\Html;
                             <?php ActiveForm::end(); ?>
 
                             <!-- Links -->
-                            <a href="#" class="small text-muted text-decoration-none">
-                                Forgot password?
-                            </a>
+                            <div class="mb-3">
+                                <a href="#" class="small text-decoration-none fw-semibold" style="color: #0d6efd !important;">
+                                    Forgot password?
+                                </a>
+                            </div>
 
-                            <p class="mb-4 mt-3" style="color: #393f81;">
+                            <p class="mb-4" style="color: #212529 !important;">
                                 Don't have an account?
-                                <?= Html::a('Register here', ['site/signup'], ['class' => 'text-decoration-none', 'style' => 'color: #393f81;']) ?>
+                                <?= Html::a('Register here', ['site/signup'], ['class' => 'text-decoration-none fw-semibold', 'style' => 'color: #0d6efd !important;']) ?>
                             </p>
 
-                            <div>
-                                <?= Html::a('Terms of Service', ['site/terms-of-service'], ['class' => 'small text-muted text-decoration-none me-3']) ?>
+                            <div class="pt-3 border-top" style="border-top-color: #dee2e6 !important;">
+                                <?= Html::a('Terms of Service', ['site/terms-of-service'], [
+                                    'class' => 'small text-decoration-none me-3',
+                                    'style' => 'color: #555555 !important; font-weight: 500;'
+                                ]) ?>
 
-                                <?= Html::a('Privacy Policy', ['site/privacy-policy'], ['class' => 'small text-muted text-decoration-none']) ?>
+                                <?= Html::a('Privacy Policy', ['site/privacy-policy'], [
+                                    'class' => 'small text-decoration-none',
+                                    'style' => 'color: #555555 !important; font-weight: 500;'
+                                ]) ?>
                             </div>
 
                         </div>
@@ -179,9 +199,7 @@ use yii\bootstrap5\Html;
                 </div>
             </div>
         </div>
-    </div>
-</div>
-</div>
+
 
 
 
@@ -217,8 +235,7 @@ use yii\bootstrap5\Html;
         background: linear-gradient(
             to right,
             rgba(106, 17, 203, 1),
-            rgba(37, 117, 252, 1)
-        );
+?        );
     }
 
     .login-image-panel {
@@ -253,5 +270,17 @@ use yii\bootstrap5\Html;
         flex-direction: column;
         justify-content: space-between;
         color: white;
+    }
+
+    .login-back-btn {
+        color: #1f6feb;
+        border: 1px solid rgba(31, 111, 235, 0.22);
+        box-shadow: 0 12px 28px rgba(16, 33, 58, 0.12);
+    }
+
+    .login-back-btn:hover,
+    .login-back-btn:focus {
+        color: #1657c1;
+        border-color: rgba(31, 111, 235, 0.35);
     }
 </style>

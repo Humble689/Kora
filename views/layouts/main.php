@@ -24,94 +24,122 @@ $currentRoute = Yii::$app->controller->id . '/' . Yii::$app->controller->action-
     <title><?= Html::encode($this->title) ?></title>
     
     <?php 
-    if ($currentRoute !== 'site/index'): 
+    if (!in_array($currentRoute, ['site/index', 'site/login'], true)): 
     ?>
     <style>
+        :root {
+            --theme-primary: #1f6feb;
+            --theme-primary-hover: #1657c1;
+            --theme-surface: #ffffff;
+            --theme-bg: #f4f8ff;
+            --theme-text: #10213a;
+            --theme-muted: #5b6f8f;
+            --theme-border: #d8e4f7;
+            --theme-soft: #edf4ff;
+        }
+
         body, html, #main {
-            background-color: #f4f6f9 !important;
-            color: #212529 !important;
+            background: linear-gradient(180deg, #f8fbff 0%, #eef4ff 100%) !important;
+            background-attachment: fixed !important;
+            color: var(--theme-text) !important;
+        }
+
+        #main {
+            position: relative;
+        }
+
+        #main::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background: radial-gradient(circle at top right, rgba(31, 111, 235, 0.12), transparent 38%),
+                        radial-gradient(circle at bottom left, rgba(31, 111, 235, 0.08), transparent 28%);
         }
 
         .card, .site-signup, .site-login, .site-bursar {
-            background-color: #ffffff !important;
-            color: #212529 !important;
+            background-color: var(--theme-surface) !important;
+            color: var(--theme-text) !important;
+            border-color: var(--theme-border) !important;
+            box-shadow: 0 18px 50px rgba(16, 33, 58, 0.08) !important;
+            border-radius: 1rem !important;
         }
 
         #main h1, #main h2, #main h3, #main h4, #main h5, #main h6,
         #main label, #main .form-label, #main p, #main span {
-            /* color: #212529 !important; */
+            color: var(--theme-text);
         }
         #main .text-muted {
-            color: #6c757d !important;
+            color: var(--theme-muted) !important;
         }
 
         /* Form buttons and links look professional */
         #main .btn-primary, #main button[type="submit"] {
-            background-color: #007bff !important;
-            border-color: #007bff !important;
+            background-color: var(--theme-primary) !important;
+            border-color: var(--theme-primary) !important;
             color: #ffffff !important;
         }
         #main .btn-primary:hover {
-            background-color: #0056b3 !important;
-            border-color: #0056b3 !important;
+            background-color: var(--theme-primary-hover) !important;
+            border-color: var(--theme-primary-hover) !important;
         }
 
         /* text link actions to match the theme blue */
         #main a:not(.btn):not(.sidebar-link) {
-            color: #007bff !important;
+            color: var(--theme-primary) !important;
             text-decoration: none !important;
             font-weight: 600 !important;
         }
         #main a:not(.btn):not(.sidebar-link):hover {
             text-decoration: underline !important;
-            color: #0056b3 !important;
+            color: var(--theme-primary-hover) !important;
         }
 
         .form-control, .form-select, select, input {
             background-color: #ffffff !important;
-            color: #212529 !important;
-            border: 1px solid #ced4da !important;
+            color: var(--theme-text) !important;
+            border: 1px solid var(--theme-border) !important;
         }
 
         .table {
             background-color: #ffffff !important;
-            color: #212529 !important;
+            color: var(--theme-text) !important;
         }
         .table th {
-            background-color: #f8f9fa !important;
-            color: #212529 !important;
+            background-color: var(--theme-soft) !important;
+            color: var(--theme-text) !important;
             font-weight: bold !important;
         }
         .table td {
             background-color: #ffffff !important;
-            color: #212529 !important;
+            color: var(--theme-text) !important;
         }
         .table-striped > tbody > tr:nth-of-type(odd) > * {
-            background-color: #f2f4f7 !important; 
-            color: #212529 !important;
+            background-color: #f9fbff !important; 
+            color: var(--theme-text) !important;
         }
         .table-hover > tbody > tr:hover > * {
-            background-color: #e2e8f0 !important;
-            color: #212529 !important;
+            background-color: #eaf2ff !important;
+            color: var(--theme-text) !important;
         }
 
         .pagination .page-link {
             background-color: #ffffff !important;
-            /* color: #007bff !important; */
-            border: 1px solid #dee2e6 !important;
+            color: var(--theme-primary) !important;
+            border: 1px solid var(--theme-border) !important;
         }
         .pagination .page-item.active .page-link {
-            /* background-color: #007bff !important; */
-            border-color: #007bff !important;
+            background-color: var(--theme-primary) !important;
+            border-color: var(--theme-primary) !important;
             color: #ffffff !important;
         }
         .pagination .page-item.disabled .page-link {
-            color: #6c757d !important;
+            color: var(--theme-muted) !important;
             background-color: #fff !important;
         }
 
         input[type="checkbox"] {
-            accent-color: #02254b !important;
+            accent-color: var(--theme-primary) !important;
             opacity: 1 !important;
             visibility: visible !important;
         }
@@ -120,12 +148,12 @@ $currentRoute = Yii::$app->controller->id . '/' . Yii::$app->controller->action-
         #main select::placeholder,
         #main textarea::placeholder,
         .form-control::placeholder {
-            color: #495057 !important; 
+            color: #6b5a86 !important; 
             opacity: 1 !important; 
             font-weight: 500 !important;
         }
 
-        #main input::-ms-input-placeholder { color: #495057 !important; opacity: 1 !important; }
+        #main input::-ms-input-placeholder { color: #6b5a86 !important; opacity: 1 !important; }
 
         .sidebar-panel {
             width: 260px;
@@ -134,8 +162,8 @@ $currentRoute = Yii::$app->controller->id . '/' . Yii::$app->controller->action-
             top: 56px;
             left: 0;
             z-index: 100;
-            background-color: #1e293b !important;
-            border-right: 1px solid #334155;
+            background: linear-gradient(180deg, #1f6feb 0%, #1657c1 100%) !important;
+            border-right: 1px solid rgba(255, 255, 255, 0.18);
             padding: 1.5rem 1rem;
         }
         .sidebar-link {
@@ -143,31 +171,50 @@ $currentRoute = Yii::$app->controller->id . '/' . Yii::$app->controller->action-
             align-items: center;
             gap: 0.75rem;
             padding: 0.65rem 1rem;
-            color: #94a3b8 !important;
+            color: rgba(255, 255, 255, 0.92) !important;
             font-weight: 600;
-            border-radius: 6px;
+            border-radius: 0.85rem;
             text-decoration: none !important;
             margin-bottom: 0.25rem;
-            transition: all 0.2s;
+            transition: background-color 0.2s ease, color 0.2s ease, transform 0.2s ease;
         }
         .sidebar-link:hover, .sidebar-link.active {
             color: #ffffff !important;
-            background-color: #334155 !important;
+            background-color: rgba(255, 255, 255, 0.18) !important;
+            transform: translateX(2px);
         }
         .workspace-content {
             margin-left: 260px;
             width: calc(100% - 260px);
             padding-top: 1.5rem;
+            position: relative;
+            z-index: 1;
         }
         .sidebar-heading {
             font-size: 0.75rem;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            color: #64748b;
+            color: rgba(255, 255, 255, 0.75);
             font-weight: 700;
             margin-top: 1.5rem;
             margin-bottom: 0.5rem;
             padding-left: 1rem;
+        }
+
+        .sidebar-panel .border-bottom {
+            border-color: rgba(255, 255, 255, 0.16) !important;
+        }
+
+        .sidebar-panel .badge,
+        .sidebar-panel .role-badge {
+            background: rgba(255, 255, 255, 0.16) !important;
+            color: #ffffff !important;
+            border: 1px solid rgba(255, 255, 255, 0.22) !important;
+        }
+
+        .workspace-content > .breadcrumbs,
+        .workspace-content > .alert {
+            border-radius: 0.85rem;
         }
     </style>
     <?php endif; ?>
@@ -176,7 +223,7 @@ $currentRoute = Yii::$app->controller->id . '/' . Yii::$app->controller->action-
 <?php $this->beginBody() ?>
 
 <?php 
-if ($currentRoute !== 'site/index'): 
+if (!in_array($currentRoute, ['site/index', 'site/login'], true)): 
 ?>
     <?= $this->render('_header') ?>
 <?php endif; ?>
@@ -187,9 +234,15 @@ if ($currentRoute !== 'site/index'):
         <div class="d-flex w-100">
             
             <!-- Left Fixed Navigation Panel -->
-            <div class="sidebar-panel">
-                <div class="text-white small px-3 mb-3 pb-2 border-bottom border-secondary opacity-70">
-                    <i class="bi bi-shield-lock-fill me-1"></i> Role: <span class="fw-bold text-info"><?= Html::encode($role) ?></span>
+            <div class="sidebar-panel side">
+                <div class="text-white small px-3 mb-3 pb-2 border-bottom">
+                    <div class="d-flex align-items-center justify-content-between gap-2">
+                        <span class="d-inline-flex align-items-center gap-2 fw-semibold">
+                            <i class="bi bi-shield-lock-fill"></i>
+                            Account Role
+                        </span>
+                        <span class="badge rounded-pill px-3 py-2 role-badge"><?= Html::encode($role) ?></span>
+                    </div>
                 </div>
                 
                 <div class="sidebar-heading">Navigation Desk</div>
