@@ -78,7 +78,7 @@ $this->title = 'KORA ERP Bursar Operations';
         </div>
 
         <div class="card border-0 shadow-sm rounded-3 overflow-hidden bg-white mb-4">
-            <div class="card-header bg-success text-white py-3 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
+            <div class="card-header bg-primary text-white py-3 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
                 <h5 class="card-title h6 fw-bold mb-0">
                     <i class="bi bi-receipt-cutoff me-1"></i> Recent Clearing Network Receipts
                 </h5>

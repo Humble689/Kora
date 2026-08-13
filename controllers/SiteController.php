@@ -62,7 +62,7 @@ class SiteController extends Controller
                     ],
                     //  RULE 2: Bursar Accounting Permissions
                     [
-                        'actions' => ['school-admin', 'signup', 'bursar', 'dos-review', 'seal-marks', 'print-reports', 'manage-assignments', 'delete-assignment', 'register-student', 'edit-student', 'delete-student', 'mark-no-show', 'export-students', 'export-receipts', 'term-rollover'],
+                        'actions' => ['school-admin', 'signup', 'bursar', 'dos-review', 'seal-marks', 'print-reports', 'manage-assignments','students-directory', 'delete-assignment', 'register-student', 'edit-student', 'delete-student', 'mark-no-show', 'export-students', 'export-receipts', 'term-rollover'],
                         'allow' => true,
                         'roles' => ['@'],
                         'matchCallback' => function ($rule, $action) {
@@ -1138,9 +1138,9 @@ public function actionProcessPayment()
 
             $studentsList = $studentQuery->orderBy(['name' => SORT_ASC])->all();
 
-            //  Map already entered marks to prevent teachers from losing draft entries
             $marksRows = Yii::$app->db->createCommand(
-                'SELECT student_id, bot_mark, mot_mark, eot_mark, teacher_comment, status FROM academic_marks 
+                'SELECT student_id, bot_mark, mot_mark, eot_mark, teacher_comment, dos_feedback, bot_status, mot_status, eot_status 
+                 FROM academic_marks 
                  WHERE school_id = :sid AND class_level = :cls AND subject_name = :sub AND term = :trm AND academic_year = :yr'
             )->bindValues([
                 ':sid' => $schoolId,
@@ -1153,7 +1153,7 @@ public function actionProcessPayment()
             foreach ($marksRows as $row) {
                 $existingMarks[$row['student_id']] = $row;
             }
-        }
+
 
         return $this->render('teacher_grading', [
             'assignments' => $assignments,
@@ -1163,71 +1163,101 @@ public function actionProcessPayment()
             'existingMarks' => $existingMarks,
         ]);
     }
+    
+    }
+public function actionSubmitMarks()
+{
+    if (Yii::$app->request->isPost && !Yii::$app->user->isGuest) {
+        $user = Yii::$app->user->identity;
+        if (!in_array($user->role, ['TEACHER', 'SCHOOL_ADMIN'])) {
+            throw new \yii\web\ForbiddenHttpException();
+        }
 
+        $schoolId = $user->school_id;
+        $postData = Yii::$app->request->post();
 
-       public function actionSubmitMarks()
-    {
-        if (Yii::$app->request->isPost && !Yii::$app->user->isGuest && Yii::$app->user->identity->role === 'TEACHER') {
-            $schoolId = Yii::$app->user->identity->school_id;
-            $postData = Yii::$app->request->post();
-            
-            $classLevel = $postData['class_level'] ?? '';
-            $subjectName = $postData['subject_name'] ?? '';
-            $term = $postData['term'] ?? 'TERM_1';
-            $academicYear = (int)date('Y');
+        $classLevel = $postData['class_level'] ?? '';
+        $subjectName = $postData['subject_name'] ?? '';
+        $term = $postData['term'] ?? 'TERM_1';
+        $submissionMode = $postData['submission_mode'] ?? 'SUBMIT_ALL';
+        $selectedStudents = $postData['selected_students'] ?? [];
+        $academicYear = (int)date('Y');
 
-            $scoresMatrix = $postData['Scores'] ?? [];
+        $scoresMatrix = $postData['Scores'] ?? [];
 
-            $dbTransaction = Yii::$app->db->beginTransaction();
-            try {
-                foreach ($scoresMatrix as $studentId => $marks) {
-                    
-                    // Core validation parameter boundary protections
-                    $bot = min(100, max(0, (float)($marks['bot'] ?? 0)));
-                    $mot = min(100, max(0, (float)($marks['mot'] ?? 0)));
-                    $eot = min(100, max(0, (float)($marks['eot'] ?? 0)));
-                    $comment = trim($marks['comment'] ?? '');
-
-                    // Check if a row already exists to decide between INSERT or UPDATE operations
-                    $exists = Yii::$app->db->createCommand(
-                        'SELECT id, status FROM academic_marks WHERE student_id = :st AND subject_name = :sub AND term = :trm AND academic_year = :yr'
-                    )->bindValues([':st' => $studentId, ':sub' => $subjectName, ':trm' => $term, ':yr' => $academicYear])->queryOne();
-
-                                         if ($exists) {
-                        if ($exists['status'] === 'APPROVED_SEALED') {
-                            continue; 
-                        }
-
-                        // Clear the D.O.S note when the teacher resubmits the file
-                        Yii::$app->db->createCommand()->update('academic_marks', [
-                            'bot_mark' => $bot, 
-                            'mot_mark' => $mot, 
-                            'eot_mark' => $eot,
-                            'teacher_comment' => $comment, 
-                            'dos_feedback' => null, 
-                            'status' => 'PENDING_REVIEW',
-                            'updated_at' => date('Y-m-d H:i:s')
-                        ], 'id = ' . $exists['id'])->execute();
-                    }
-
+        $dbTransaction = Yii::$app->db->beginTransaction();
+        try {
+            foreach ($scoresMatrix as $studentId => $marks) {
+                if ($submissionMode === 'SUBMIT_SELECTED' && !in_array((string)$studentId, $selectedStudents)) {
+                    continue;
                 }
 
-                $dbTransaction->commit();
-                Yii::$app->session->setFlash('success', "Marks entry directory sheet committed to moderation review queue successfully.");
-            } catch (\Exception $e) {
-                $dbTransaction->rollBack();
-                Yii::$app->session->setFlash('error', "Grading commit crash: " . $e->getMessage());
+                $bot = min(100, max(0, (float)($marks['bot'] ?? 0)));
+                $mot = min(100, max(0, (float)($marks['mot'] ?? 0)));
+                $eot = min(100, max(0, (float)($marks['eot'] ?? 0)));
+                $comment = trim($marks['comment'] ?? '');
+
+                $botTouched = ($marks['bot_touched'] ?? '0') === '1';
+                $motTouched = ($marks['mot_touched'] ?? '0') === '1';
+                $eotTouched = ($marks['eot_touched'] ?? '0') === '1';
+
+                $exists = Yii::$app->db->createCommand(
+                    'SELECT id, bot_mark, mot_mark, eot_mark, bot_status, mot_status, eot_status FROM academic_marks 
+                     WHERE student_id = :st AND subject_name = :sub AND term = :trm AND academic_year = :yr'
+                )->bindValues([':st' => $studentId, ':sub' => $subjectName, ':trm' => $term, ':yr' => $academicYear])->queryOne();
+
+                if ($exists) {
+                    $canEditBot = ($user->role === 'SCHOOL_ADMIN' || $exists['bot_status'] !== 'APPROVED_SEALED');
+                    $canEditMot = ($user->role === 'SCHOOL_ADMIN' || $exists['mot_status'] !== 'APPROVED_SEALED');
+                    $canEditEot = ($user->role === 'SCHOOL_ADMIN' || $exists['eot_status'] !== 'APPROVED_SEALED');
+
+                    $updateFields = ['teacher_comment' => $comment, 'updated_at' => date('Y-m-d H:i:s')];
+
+                    $shouldSubmitBot = $canEditBot && $botTouched && (abs(((float)$exists['bot_mark']) - $bot) > 0.0001 || $exists['bot_status'] === 'REJECTED_AMEND' || in_array($exists['bot_status'], [null, '', 'NOT_SUBMITTED']));
+                    $shouldSubmitMot = $canEditMot && $motTouched && (abs(((float)$exists['mot_mark']) - $mot) > 0.0001 || $exists['mot_status'] === 'REJECTED_AMEND' || in_array($exists['mot_status'], [null, '', 'NOT_SUBMITTED']));
+                    $shouldSubmitEot = $canEditEot && $eotTouched && (abs(((float)$exists['eot_mark']) - $eot) > 0.0001 || $exists['eot_status'] === 'REJECTED_AMEND' || in_array($exists['eot_status'], [null, '', 'NOT_SUBMITTED']));
+
+                    if ($shouldSubmitBot) { $updateFields['bot_mark'] = $bot; $updateFields['bot_status'] = 'PENDING_REVIEW'; }
+                    if ($shouldSubmitMot) { $updateFields['mot_mark'] = $mot; $updateFields['mot_status'] = 'PENDING_REVIEW'; }
+                    if ($shouldSubmitEot) { $updateFields['eot_mark'] = $eot; $updateFields['eot_status'] = 'PENDING_REVIEW'; }
+
+                    Yii::$app->db->createCommand()->update('academic_marks', $updateFields, ['id' => $exists['id']])->execute();
+                } else {
+                    Yii::$app->db->createCommand()->insert('academic_marks', [
+                        'school_id' => $schoolId,
+                        'student_id' => (int)$studentId,
+                        'subject_name' => $subjectName,
+                        'class_level' => $classLevel,
+                        'term' => $term,
+                        'academic_year' => $academicYear,
+                        'bot_mark' => $botTouched ? $bot : 0,
+                        'mot_mark' => $motTouched ? $mot : 0,
+                        'eot_mark' => $eotTouched ? $eot : 0,
+                        'teacher_comment' => $comment,
+                        'bot_status' => $botTouched ? 'PENDING_REVIEW' : 'NOT_SUBMITTED',
+                        'mot_status' => $motTouched ? 'PENDING_REVIEW' : 'NOT_SUBMITTED',
+                        'eot_status' => $eotTouched ? 'PENDING_REVIEW' : 'NOT_SUBMITTED',
+                        'updated_at' => date('Y-m-d H:i:s')
+                    ])->execute();
+                }
             }
 
-            return $this->redirect(['site/teacher-grading', 'assignment_id' => $postData['assignment_id'] ?? 0, 'term' => $term]);
+            $dbTransaction->commit();
+            Yii::$app->session->setFlash('success', "Marks saved securely under Kora Core Engine parameters.");
+        } catch (\Exception $e) {
+            $dbTransaction->rollBack();
+            Yii::$app->session->setFlash('error', "Grading commit crash: " . $e->getMessage());
         }
-        throw new \yii\web\ForbiddenHttpException();
-    }
 
-       
+        return $this->redirect(['site/teacher-grading', 'assignment_id' => $postData['assignment_id'] ?? 0, 'term' => $term]);
+    }
+    throw new \yii\web\ForbiddenHttpException();
+}
+
+     
     public function actionDosReview()
     {
-        if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['DOS', 'SUPER_ADMIN','SCHOOL_ADMIN'])) {
+        if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['DOS', 'SUPER_ADMIN', 'SCHOOL_ADMIN'])) {
             return $this->redirect(['site/login']);
         }
 
@@ -1238,15 +1268,22 @@ public function actionProcessPayment()
         $selectedTerm = $request->get('term', 'TERM_1');
         $academicYear = (int)date('Y');
 
+        //  FIXED AGGREGATOR MATH: Accurately checks row statuses independently for dynamic term updates
         $marksSummary = Yii::$app->db->createCommand(
-            'SELECT subject_name, status, COUNT(id) as total_entries 
-             FROM academic_marks 
+            "SELECT subject_name,
+                    COUNT(id) AS total_entries,
+                    SUM(CASE WHEN bot_status = 'PENDING_REVIEW' OR mot_status = 'PENDING_REVIEW' OR eot_status = 'PENDING_REVIEW' THEN 1 ELSE 0 END) AS pending_rows,
+                    SUM(CASE WHEN bot_status = 'REJECTED_AMEND' OR mot_status = 'REJECTED_AMEND' OR eot_status = 'REJECTED_AMEND' THEN 1 ELSE 0 END) AS rejected_rows,
+                    SUM(CASE WHEN bot_status = 'APPROVED_SEALED' OR mot_status = 'APPROVED_SEALED' OR eot_status = 'APPROVED_SEALED' THEN 1 ELSE 0 END) AS sealed_rows
+             FROM academic_marks
              WHERE school_id = :sid AND class_level = :cls AND term = :trm AND academic_year = :yr
-             GROUP BY subject_name, status'
+             GROUP BY subject_name
+             ORDER BY subject_name ASC"
         )->bindValues([
             ':sid' => $schoolId, ':cls' => $selectedClass, ':trm' => $selectedTerm, ':yr' => $academicYear
         ])->queryAll();
 
+        //  RAW ENTRIES FETCH: Gathers comprehensive student rows alongside their dynamic validation attributes
         $rawRecords = Yii::$app->db->createCommand(
             'SELECT m.*, s.name as student_name 
              FROM academic_marks m
@@ -1265,6 +1302,7 @@ public function actionProcessPayment()
         ]);
     }
 
+
    
     public function actionSealMarks()
     {
@@ -1275,15 +1313,24 @@ public function actionProcessPayment()
             $term = Yii::$app->request->post('term');
             $academicYear = (int)date('Y');
 
+            $pendingCondition = ['or',
+                ['bot_status' => 'PENDING_REVIEW'],
+                ['mot_status' => 'PENDING_REVIEW'],
+                ['eot_status' => 'PENDING_REVIEW'],
+            ];
+
             Yii::$app->db->createCommand()->update('academic_marks', [
-                'status' => 'APPROVED_SEALED'
-            ], [
+                'bot_status' => new \yii\db\Expression("CASE WHEN bot_status = 'PENDING_REVIEW' THEN 'APPROVED_SEALED' ELSE bot_status END"),
+                'mot_status' => new \yii\db\Expression("CASE WHEN mot_status = 'PENDING_REVIEW' THEN 'APPROVED_SEALED' ELSE mot_status END"),
+                'eot_status' => new \yii\db\Expression("CASE WHEN eot_status = 'PENDING_REVIEW' THEN 'APPROVED_SEALED' ELSE eot_status END"),
+                'dos_feedback' => null,
+            ], ['and', [
                 'school_id' => $schoolId,
                 'class_level' => $classLevel,
                 'subject_name' => $subjectName,
                 'term' => $term,
-                'academic_year' => $academicYear
-            ])->execute();
+                'academic_year' => $academicYear,
+            ], $pendingCondition])->execute();
 
             Yii::$app->session->setFlash('success', "Marks sheet for {$classLevel} — {$subjectName} successfully approved and sealed.");
             return $this->redirect(['site/dos-review', 'class_level' => $classLevel, 'term' => $term]);
@@ -1351,10 +1398,7 @@ public function actionProcessPayment()
             return $this->redirect(['site/manage-assignments']);
         }
         throw new \yii\web\ForbiddenHttpException();
-    }
-
-
-     
+    }  
     
     public function actionPrintReports()
     {
@@ -1427,17 +1471,24 @@ public function actionProcessPayment()
             }
 
                 // Save the D.O.S rejection notes strictly inside the new feedback box
+            $pendingCondition = ['or',
+                ['bot_status' => 'PENDING_REVIEW'],
+                ['mot_status' => 'PENDING_REVIEW'],
+                ['eot_status' => 'PENDING_REVIEW'],
+            ];
+
             Yii::$app->db->createCommand()->update('academic_marks', [
-                'status' => 'REJECTED_AMEND',
-                'dos_feedback' => new \yii\db\Expression(":dosComment::text", [':dosComment' => $dosComment])
-            ], [
+                'bot_status' => new \yii\db\Expression("CASE WHEN bot_status = 'PENDING_REVIEW' THEN 'REJECTED_AMEND' ELSE bot_status END"),
+                'mot_status' => new \yii\db\Expression("CASE WHEN mot_status = 'PENDING_REVIEW' THEN 'REJECTED_AMEND' ELSE mot_status END"),
+                'eot_status' => new \yii\db\Expression("CASE WHEN eot_status = 'PENDING_REVIEW' THEN 'REJECTED_AMEND' ELSE eot_status END"),
+                'dos_feedback' => $dosComment,
+            ], ['and', [
                 'school_id' => $schoolId,
                 'class_level' => $classLevel,
                 'subject_name' => $subjectName,
                 'term' => $term,
                 'academic_year' => $academicYear,
-                'status' => 'PENDING_REVIEW'
-            ])->execute();
+            ], $pendingCondition])->execute();
             Yii::$app->session->setFlash('success', "Marks sheet for {$classLevel} — {$subjectName} has been rejected back to the teacher.");
             return $this->redirect(['site/dos-review', 'class_level' => $classLevel, 'term' => $term]);
         }
@@ -1467,13 +1518,14 @@ public function actionProcessPayment()
         ];
 
         //Monitor pending grading sheets submitted by teachers
-        $pendingSheets = Yii::$app->db->createCommand(
-            "SELECT subject_name, class_level, term, COUNT(id) as student_count 
-             FROM academic_marks 
-             WHERE school_id = :sid AND status = 'PENDING_REVIEW'
-             GROUP BY subject_name, class_level, term
-             LIMIT 5"
-        )->bindValue(':sid', $schoolId)->queryAll();
+                $pendingSheets = Yii::$app->db->createCommand(
+                        "SELECT subject_name, class_level, term, COUNT(id) as student_count
+                         FROM academic_marks
+                         WHERE school_id = :sid
+                             AND (bot_status = 'PENDING_REVIEW' OR mot_status = 'PENDING_REVIEW' OR eot_status = 'PENDING_REVIEW')
+                         GROUP BY subject_name, class_level, term
+                         LIMIT 5"
+                )->bindValue(':sid', $schoolId)->queryAll();
 
         // Combined stream of latest clearing network receipts
         $recentTransactions = Transactions::find()
@@ -1490,4 +1542,134 @@ public function actionProcessPayment()
             'recentTransactions' => $recentTransactions,
         ]);
     }
+
+public function actionBulkModerateMarks()
+{
+    if (!Yii::$app->request->isPost || Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['DOS', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
+        throw new \yii\web\ForbiddenHttpException();
+    }
+
+    $schoolId = Yii::$app->user->identity->school_id;
+    $userRole = Yii::$app->user->identity->role;
+    $request = Yii::$app->request;
+
+    $classLevel = $request->post('class_level');
+    $term = $request->post('term');
+    $operation = $request->post('moderation_action');
+    $dosComment = trim($request->post('dos_comment', ''));
+    $academicYear = (int)date('Y');
+
+    $validColumns = ['bot', 'mot', 'eot'];
+
+    // Tokens look like "482_bot" — {record_id}_{column}
+    $selectedTokens = $request->post('selected_marks', []);
+    $unsealTokens = $request->post('selected_unseal', []);
+
+    if (in_array($operation, ['REJECT_SELECTED', 'REJECT_ALL', 'ADMIN_UNSEAL_SELECTED']) && empty($dosComment)) {
+        Yii::$app->session->setFlash('error', 'Operational Block: You must provide a correction comment for this action.');
+        return $this->redirect(['site/dos-review', 'class_level' => $classLevel, 'term' => $term]);
+    }
+
+    if ($operation === 'ADMIN_UNSEAL_SELECTED' && !in_array($userRole, ['SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
+        throw new \yii\web\ForbiddenHttpException();
+    }
+
+    $dbTransaction = Yii::$app->db->beginTransaction();
+    try {
+        switch ($operation) {
+
+            case 'APPROVE_SELECTED':
+            case 'REJECT_SELECTED':
+                if (empty($selectedTokens)) {
+                    Yii::$app->session->setFlash('error', 'No student columns selected. Please check boxes to moderate.');
+                    break;
+                }
+                $newStatus = $operation === 'APPROVE_SELECTED' ? 'APPROVED_SEALED' : 'REJECTED_AMEND';
+                $touched = 0;
+
+                foreach ($selectedTokens as $token) {
+                    [$recordId, $col] = array_pad(explode('_', (string)$token, 2), 2, null);
+                    if (!in_array($col, $validColumns) || !ctype_digit((string)$recordId)) {
+                        continue;
+                    }
+
+                    $update = ["{$col}_status" => $newStatus];
+                    if ($operation === 'REJECT_SELECTED') {
+                        $update['dos_feedback'] = $dosComment;
+                    } else {
+                        $update['dos_feedback'] = null;
+                    }
+
+                    $affected = Yii::$app->db->createCommand()->update('academic_marks', $update, [
+                        'id' => $recordId,
+                        'school_id' => $schoolId,
+                        "{$col}_status" => 'PENDING_REVIEW', // only ever moves a column OUT of pending — siblings untouched
+                    ])->execute();
+                    $touched += $affected;
+                }
+
+                Yii::$app->session->setFlash('success', "{$touched} mark column(s) " . ($operation === 'APPROVE_SELECTED' ? 'approved and sealed.' : 'returned to the teacher for revision.'));
+                break;
+
+            case 'APPROVE_ALL':
+            case 'REJECT_ALL':
+                $newStatus = $operation === 'APPROVE_ALL' ? 'APPROVED_SEALED' : 'REJECTED_AMEND';
+                $totalTouched = 0;
+
+                foreach ($validColumns as $col) {
+                    $update = ["{$col}_status" => $newStatus];
+                    $update['dos_feedback'] = $operation === 'REJECT_ALL' ? $dosComment : null;
+
+                    $affected = Yii::$app->db->createCommand()->update('academic_marks', $update, [
+                        'school_id' => $schoolId,
+                        'class_level' => $classLevel,
+                        'term' => $term,
+                        'academic_year' => $academicYear,
+                        "{$col}_status" => 'PENDING_REVIEW',
+                    ])->execute();
+                    $totalTouched += $affected;
+                }
+
+                Yii::$app->session->setFlash('success', "{$totalTouched} pending mark column(s) for {$classLevel} " . ($operation === 'APPROVE_ALL' ? 'approved and sealed.' : 'returned for revision.'));
+                break;
+
+            case 'ADMIN_UNSEAL_SELECTED':
+                if (empty($unsealTokens)) {
+                    Yii::$app->session->setFlash('error', 'No sealed columns selected to unseal.');
+                    break;
+                }
+                $unsealedCount = 0;
+
+                foreach ($unsealTokens as $token) {
+                    [$recordId, $col] = array_pad(explode('_', (string)$token, 2), 2, null);
+                    if (!in_array($col, $validColumns) || !ctype_digit((string)$recordId)) {
+                        continue;
+                    }
+
+                    $affected = Yii::$app->db->createCommand()->update('academic_marks', [
+                        "{$col}_status" => 'REJECTED_AMEND',
+                        'dos_feedback' => '[ADMIN CORRECTION] ' . $dosComment,
+                    ], [
+                        'id' => $recordId,
+                        'school_id' => $schoolId,
+                        "{$col}_status" => 'APPROVED_SEALED', // only reverses a genuinely sealed column
+                    ])->execute();
+                    $unsealedCount += $affected;
+                }
+
+                Yii::$app->session->setFlash('success', "{$unsealedCount} sealed column(s) unsealed and returned to the teacher.");
+                break;
+
+            default:
+                Yii::$app->session->setFlash('error', 'Unknown moderation action.');
+        }
+
+        $dbTransaction->commit();
+    } catch (\Exception $e) {
+        $dbTransaction->rollBack();
+        Yii::$app->session->setFlash('error', "Moderation batch engine crash: " . $e->getMessage());
+    }
+
+    return $this->redirect(['site/dos-review', 'class_level' => $classLevel, 'term' => $term]);
+}
 }

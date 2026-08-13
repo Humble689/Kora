@@ -16,7 +16,7 @@ $this->title = 'School Master Admin Control Panel';
     <div class="card card-body border-0 shadow-sm rounded-3 mb-4 p-4 border-start border-primary border-4 bg-white">
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
             <div>
-                <h2 class="h4 fw-bold mb-0 text-dark"><i class="bi bi-shield-shaded me-2 text-primary"></i><?= Html::encode($school->name) ?> — System Command Hub</h2>
+                <h2 class="h4 fw-bold mb-0 text-dark"><i class="bi bi-shield-shaded me-2 text-primary"></i><?= Html::encode(strtoupper($school->name)) ?>  System Command Hub</h2>
                 <p class="text-muted small mb-0">Platform Provider Authorization Level. Full cross-departmental operations audit overview.</p>
             </div>
             <div>
@@ -56,7 +56,7 @@ $this->title = 'School Master Admin Control Panel';
     <div class="row g-4">
         <div class="col-12 col-md-6">
             <div class="card border-0 shadow-sm rounded-3 bg-white h-100 overflow-hidden">
-                <div class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center">
+                <div class="card-header bg-primary text-white py-3 d-flex justify-content-between align-items-center">
                     <h5 class="card-title h6 fw-bold mb-0"><i class="bi bi-clipboard-check me-1 text-warning"></i> Pending Academic Review Queue</h5>
                     <a href="<?= Url::toRoute(['site/dos-review']) ?>" class="btn btn-xs btn-outline-light py-0.5 px-2 text-xs rounded">Open Audit Desk</a>
                 </div>
@@ -91,7 +91,7 @@ $this->title = 'School Master Admin Control Panel';
 
         <div class="col-12 col-md-6">
             <div class="card border-0 shadow-sm rounded-3 bg-white h-100 overflow-hidden">
-                <div class="card-header bg-dark text-white py-3 d-flex justify-content-between align-items-center">
+                <div class="card-header bg-primary text-white py-3 d-flex justify-content-between align-items-center">
                     <h5 class="card-title h6 fw-bold mb-0"><i class="bi bi-currency-exchange me-1 text-info"></i> Inbound Bank Settlement Audits</h5>
                     <a href="<?= Url::toRoute(['site/bursar']) ?>" class="btn btn-xs btn-outline-light py-0.5 px-2 text-xs rounded">Open Ledger</a>
                 </div>

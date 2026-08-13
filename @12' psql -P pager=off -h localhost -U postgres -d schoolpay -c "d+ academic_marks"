@@ -1,0 +1,32 @@
+                                                                      Table "public.academic_marks"
+     Column      |            Type             | Collation | Nullable |                  Default                   | Storage  | Compression | Stats target | Description 
+-----------------+-----------------------------+-----------+----------+--------------------------------------------+----------+-------------+--------------+-------------
+ id              | integer                     |           | not null | nextval('academic_marks_id_seq'::regclass) | plain    |             |              | 
+ school_id       | integer                     |           |          |                                            | plain    |             |              | 
+ student_id      | integer                     |           |          |                                            | plain    |             |              | 
+ subject_name    | character varying(100)      |           | not null |                                            | extended |             |              | 
+ class_level     | character varying(50)       |           | not null |                                            | extended |             |              | 
+ bot_mark        | numeric(5,2)                |           |          | 0.00                                       | main     |             |              | 
+ mot_mark        | numeric(5,2)                |           |          | 0.00                                       | main     |             |              | 
+ eot_mark        | numeric(5,2)                |           |          | 0.00                                       | main     |             |              | 
+ teacher_comment | text                        |           |          |                                            | extended |             |              | 
+ term            | character varying(10)       |           | not null |                                            | extended |             |              | 
+ academic_year   | integer                     |           | not null |                                            | plain    |             |              | 
+ updated_at      | timestamp without time zone |           |          | now()                                      | plain    |             |              | 
+ dos_feedback    | text                        |           |          |                                            | extended |             |              | 
+ bot_status      | character varying(20)       |           |          | 'PENDING_REVIEW'::character varying        | extended |             |              | 
+ mot_status      | character varying(20)       |           |          | 'PENDING_REVIEW'::character varying        | extended |             |              | 
+ eot_status      | character varying(20)       |           |          | 'PENDING_REVIEW'::character varying        | extended |             |              | 
+Indexes:
+    "academic_marks_pkey" PRIMARY KEY, btree (id)
+Foreign-key constraints:
+    "academic_marks_school_id_fkey" FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE CASCADE
+    "academic_marks_student_id_fkey" FOREIGN KEY (student_id) REFERENCES students(id) ON DELETE CASCADE
+Not-null constraints:
+    "academic_marks_id_not_null" NOT NULL "id"
+    "academic_marks_subject_name_not_null" NOT NULL "subject_name"
+    "academic_marks_class_level_not_null" NOT NULL "class_level"
+    "academic_marks_term_not_null" NOT NULL "term"
+    "academic_marks_academic_year_not_null" NOT NULL "academic_year"
+Access method: heap
+
