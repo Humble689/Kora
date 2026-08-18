@@ -32,22 +32,15 @@ use yii\bootstrap5\ActiveForm;
                             <div class="login-panel-overlay"></div>
 
                             <div class="login-panel-content">
-                                <?= Html::img(
-                                    Yii::getAlias('@web/images/yii3_full_white_for_dark.svg'),
-                                    [
-                                        'alt' => 'KORA',
-                                        'height' => 72,
-                                        'class' => 'mb-4 rounded-2',
-                                    ],
-                                ) ?>
+                                <div class="login-panel-content "></div>
 
                                 <div>
-                                    <h2 class="fw-bold mb-3">
+                                    <h2 class=" fw-bold mb-3">
                                         Welcome<br>Back
                                     </h2>
 
                                     <p class="mb-0 opacity-75">
-                                        Log in to access your account and manage your application.
+                                        Log in to access your account
                                     </p>
                                 </div>
                             </div>
@@ -102,6 +95,7 @@ use yii\bootstrap5\ActiveForm;
 
                             <?php $form = ActiveForm::begin([
                                 'id' => 'login-form',
+                                 'successCssClass' => '',
                             ]); ?>
 
                             <!-- Username -->
@@ -206,13 +200,27 @@ use yii\bootstrap5\ActiveForm;
 
 <style>
         body:has(.login-page) {
-        background: #6a11cb;
+        background:  #0f3a70;
     }
 
     body:has(.login-page) main {
         padding: 0;
         margin: 0;
     }
+
+    /* :root {
+        --kora-blue-900: #0b2a52;
+        --kora-blue-800: #0f3a70;
+        --kora-blue-700: #14488a;
+        --kora-blue-accent: #3b82f6;
+    }
+
+    .site-navbar {
+        background: linear-gradient(90deg, var(--kora-blue-800) 0%, var(--kora-blue-700) 100%) !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        padding-top: 0.6rem;
+        padding-bottom: 0.6rem;
+    } */
 
     body:has(.login-page) main > .container {
         max-width: 100%;
@@ -224,7 +232,7 @@ use yii\bootstrap5\ActiveForm;
         min-height: 100vh;
         width: 100%;
 
-        background: #6a11cb;
+        background: #0f3a70;
 
         background: -webkit-linear-gradient(
             to right,
@@ -234,8 +242,7 @@ use yii\bootstrap5\ActiveForm;
 
         background: linear-gradient(
             to right,
-            rgba(106, 17, 203, 1),
-?        );
+            rgba(106, 17, 203, 1),      );
     }
 
     .login-image-panel {

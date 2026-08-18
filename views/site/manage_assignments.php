@@ -46,7 +46,7 @@ $this->title = 'Teacher Allocations Registry';
                         <label class="form-label small fw-bold text-secondary">Target Subject curriculum</label>
                         <select name="subject_name" class="form-select form-select-sm fw-bold" required>
                             <option value="">-- Choose Subject Course --</option>
-                            <?php foreach (['Mathematics', 'English', 'Biology', 'Chemistry', 'Physics', 'History', 'Geography', 'Entrepreneurship', 'French', 'Art', 'Social Studies', 'Science'] as $sub): ?>
+                            <?php foreach (['Mathematics', 'English', 'Biology', 'Chemistry', 'Physics', 'History', 'Geography', 'Entrepreneurship', 'French', 'Art', 'Social Studies', 'Science' ,'General Paper', 'ICT'] as $sub): ?>
                                 <option value="<?= $sub ?>"><?= $sub ?></option>
                             <?php endforeach; ?>
                         </select>
@@ -83,8 +83,8 @@ $this->title = 'Teacher Allocations Registry';
                             <?php else: ?>
                                 <?php foreach ($activeAssignments as $row): ?>
                                     <tr>
-                                        <td class="ps-4 fw-bold text-dark"><i class="bi bi-person-badge-fill text-muted me-1"></i> <?= Html::encode($row['teacher_name']) ?></td>
-                                        <td><span class="badge bg-secondary px-2.5 py-1"><?= Html::encode($row['class_level']) ?></span></td>
+                                        <td class="ps-4 fw-bold text-dark"><i class="bi bi-person-badge-fill me-1"></i> <?= Html::encode($row['teacher_name']) ?></td>
+                                        <td><span class="px-2.5 py-1"><?= Html::encode($row['class_level']) ?></span></td>
                                         <td class="font-monospace text-secondary fw-semibold"><?= Html::encode($row['subject_name']) ?></td>
                                         <td class="text-end pe-4">
                                             <?= Html::beginForm(['site/delete-assignment', 'id' => $row['id']], 'post', [

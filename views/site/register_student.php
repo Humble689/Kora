@@ -13,7 +13,7 @@ $this->title = 'KORA Enroll New Student';
 
 <div class="site-register-student bg-light py-4 min-vh-100">
     <div class="container" style="max-width: 550px;">
-        
+
         <?php if (Yii::$app->session->hasFlash('error')): ?>
             <div class="alert alert-danger border-0 shadow-sm mb-3">
                 <?= Yii::$app->session->getFlash('error') ?>
@@ -34,6 +34,7 @@ $this->title = 'KORA Enroll New Student';
             <?php $form = ActiveForm::begin([
                 'id' => 'form-register-student',
                 'layout' => 'horizontal',
+                'options' => ['enctype' => 'multipart/form-data'],
                 'fieldConfig' => [
                     'template' => "{label}\n{input}\n{error}",
                     'labelOptions' => ['class' => 'form-label fw-semibold text-secondary small'],
@@ -42,7 +43,41 @@ $this->title = 'KORA Enroll New Student';
                 ],
             ]); ?>
 
+                <!-- Profile photo -->
+                <div class="mb-3">
+                    <label class="form-label fw-semibold text-secondary small">Student Photo (optional)</label>
+                    <div class="d-flex align-items-center gap-3">
+                        <span id="enroll-photo-placeholder" class="rounded-circle bg-secondary-subtle text-secondary d-inline-flex align-items-center justify-content-center flex-shrink-0" style="width:64px;height:64px;">
+                            <i class="bi bi-person-fill fs-3"></i>
+                        </span>
+                        <img id="enroll-photo-preview" class="rounded-circle border d-none flex-shrink-0" style="width:64px;height:64px;object-fit:cover;" alt="">
+                        <input type="file" name="student_photo" id="student_photo" accept="image/png,image/jpeg,image/webp" class="form-control">
+                    </div>
+                    <div class="form-text text-muted text-xs">JPG, PNG, or WEBP. Max 2MB. Used on report cards if provided.</div>
+                </div>
+
                 <?= $form->field($model, 'name')->textInput(['name' => 'Students[name]', 'autofocus' => true, 'autocomplete' => 'off', 'placeholder' => 'Enter Student\'s Full Name', 'required' => true])->label('Student Full Name') ?>
+
+                <div class="row">
+                    <div class="col-6">
+                        <?= $form->field($model, 'sex')->dropDownList([
+                            'MALE' => 'Male',
+                            'FEMALE' => 'Female',
+                        ], [
+                            'name' => 'Students[sex]',
+                            'class' => 'form-select form-select-lg',
+                            'prompt' => 'Select sex...',
+                        ])->label('Sex') ?>
+                    </div>
+                    <div class="col-6">
+                        <?= $form->field($model, 'date_of_birth')->textInput([
+                            'name' => 'Students[date_of_birth]',
+                            'type' => 'date',
+                            'class' => 'form-control form-control-lg',
+                            'max' => date('Y-m-d'),
+                        ])->label('Date of Birth') ?>
+                    </div>
+                </div>
 
                 <?= $form->field($model, 'class_level')->dropDownList([
                     'Primary 1' => 'Primary 1', 'Primary 2' => 'Primary 2', 'Primary 3' => 'Primary 3',
@@ -99,4 +134,19 @@ function toggleCurriculumFields(selectedClass) {
         aLevelWrapper.classList.remove('d-none');
     }
 }
+
+document.getElementById('student_photo').addEventListener('change', function (e) {
+    const file = e.target.files[0];
+    const preview = document.getElementById('enroll-photo-preview');
+    const placeholder = document.getElementById('enroll-photo-placeholder');
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function (ev) {
+        preview.src = ev.target.result;
+        preview.classList.remove('d-none');
+        placeholder.classList.add('d-none');
+    };
+    reader.readAsDataURL(file);
+});
 </script>

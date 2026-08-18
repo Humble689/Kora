@@ -189,7 +189,7 @@ function columnStatusMeta(string $status): array {
                                     <?php endif; ?>
                                 </td>
                                 <td class="ps-3 fw-bold text-dark">
-                                    <?= Html::encode($st->name) ?>
+                                    <?= Html::encode(ucwords($st->name)) ?>
                                 </td>
 
                                 <td class="<?= $botCellClass ?>" style="<?= $botCellStyle ?>">
@@ -360,7 +360,6 @@ document.addEventListener("DOMContentLoaded", function() {
 .bg-info-subtle { background-color: #cff4fc !important; color: #055160 !important; }
 .bg-secondary-subtle { background-color: #e2e3e5 !important; color: #41464b !important; }
 
-/* Mark cell status paint — matches the key */
 /* Mark cell status paint — matches the key */
 .cell-sealed   { background-color: #4cc58e !important; }   /* light green */
 .cell-pending  { background-color: #e9ecef !important; }   /* light grey */

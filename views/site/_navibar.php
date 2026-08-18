@@ -30,12 +30,24 @@ $username = !$isGuest ? Yii::$app->user->identity->username : '';
                                 <li><a href="<?= \yii\helpers\Url::toRoute(['/site/super-admin']) ?>" class="text-warning text-decoration-none">SaaS Master Registry</a></li>
                             <?php endif; ?>
 
+                            <?php if (!$isGuest && $role === 'SCHOOL_ADMIN'): ?>
+                                <li><a href="<?= \yii\helpers\Url::toRoute(['/site/school-admin']) ?>" class="text-white text-decoration-none fw-bold">School Admin Panel</a></li>
+                            <?php endif; ?>
+
+                            <?php if (!$isGuest && $role === 'DOS'): ?>
+                                <li><a href="<?= \yii\helpers\Url::toRoute(['/site/dos-review']) ?>" class="text-white text-decoration-none">D.O.S. Moderation Desk</a></li>
+                            <?php endif; ?>
+
+                            <?php if (!$isGuest && $role === 'TEACHER'): ?>
+                                <li><a href="<?= \yii\helpers\Url::toRoute(['/site/teacher-grading']) ?>" class="text-white text-decoration-none">Teacher Terminal</a></li>
+                            <?php endif; ?>
+
                             <?php if (!$isGuest && $role === 'BURSAR'): ?>
-                                <li><a href="<?= \yii\helpers\Url::toRoute(['/site/bursar']) ?>" class="text-info text-decoration-none">Bursar Dashboard</a></li>
+                                <li><a href="<?= \yii\helpers\Url::toRoute(['/site/bursar']) ?>" class="text-white text-decoration-none">Bursar Dashboard</a></li>
                             <?php endif; ?>
 
                             <?php if (!$isGuest && $role === 'CANTEEN'): ?>
-                                <li><a href="<?= \yii\helpers\Url::toRoute(['/site/canteen-terminal']) ?>" class="text-success text-decoration-none">Canteen Counter POS</a></li>
+                                <li><a href="<?= \yii\helpers\Url::toRoute(['/site/canteen-terminal']) ?>" class="text-white text-decoration-none">Canteen Counter POS</a></li>
                             <?php endif; ?>
 
                             <?php if ($isGuest): ?>
@@ -45,11 +57,10 @@ $username = !$isGuest ? Yii::$app->user->identity->username : '';
                                     </a>
                                     <ul class="position-absolute bg-white rounded-3 shadow border-0 p-2 text-start d-none custom-menu-box list-unstyled" style="z-index: 999; top: 100%; min-width: 180px; left: 0;">
                                         <li class="mb-1"><a href="<?= \yii\helpers\Url::toRoute(['/site/login']) ?>" class="dropdown-item px-3 py-2 text-dark fw-semibold rounded-2"><i class="bi bi-box-arrow-in-right me-2 text-primary"></i> Log In</a></li>
-                                        <li><hr class="dropdown-divider my-1"></li>
-                                        <li><a href="<?= \yii\helpers\Url::toRoute(['/site/signup']) ?>" class="dropdown-item px-3 py-2 text-dark fw-semibold rounded-2"><i class="bi bi-person-plus-fill me-2 text-success"></i> Register Staff</a></li>
                                     </ul>
                                 </li>
                             <?php endif; ?>
+
                         </ul>
                     </div>
                     

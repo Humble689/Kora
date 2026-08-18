@@ -16,6 +16,8 @@ $isGuest = Yii::$app->user->isGuest;
 $role = !$isGuest ? Yii::$app->user->identity->role : null;
 $currentRoute = Yii::$app->controller->id . '/' . Yii::$app->controller->action->id;
 ?>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
 <?php $this->beginPage() ?>
 <!DOCTYPE html>
 <html lang="<?= Yii::$app->language ?>" class="h-100" data-bs-theme="light">
@@ -234,36 +236,42 @@ if (!in_array($currentRoute, ['site/index', 'site/login'], true)):
         <div class="d-flex w-100">
             
             <!-- Left Fixed Navigation Panel -->
-            <div class="sidebar-panel side">
-                <div class="text-white small px-3 mb-3 pb-2 border-bottom">
+        <div class="sidebar-panel side">
+                <div class="sidebar-brand-block px-3 pt-2 pb-3">
+                    <div class="d-flex align-items-center gap-2">
+                        <span class="sidebar-brand-mark"><i class="bi bi-mortarboard-fill"></i></span>
+                        <span class="sidebar-brand-text">KORA</span>
+                    </div>
+                </div>
+
+                <div class="text-white-50 small px-3 mb-3 pb-3 border-bottom border-light border-opacity-10">
                     <div class="d-flex align-items-center justify-content-between gap-2">
-                        <span class="d-inline-flex align-items-center gap-2 fw-semibold">
+                        <span class="d-inline-flex align-items-center gap-2 fw-semibold text-white">
                             <i class="bi bi-shield-lock-fill"></i>
                             Account Role
                         </span>
                         <span class="badge rounded-pill px-3 py-2 role-badge"><?= Html::encode($role) ?></span>
                     </div>
                 </div>
-                
+
                 <div class="sidebar-heading">Navigation Desk</div>
-                <a href="<?= Url::toRoute(['site/index']) ?>" class="sidebar-link"><i class="bi bi-house-door"></i> Parent Portal</a>
+                <a href="<?= Url::toRoute(['site/index']) ?>" class="sidebar-link <?= $currentRoute === 'site/index' ? 'active' : '' ?>"><i class="bi bi-house-door"></i> Parent Portal</a>
 
 
-                                <!--  SCHOOL MASTER ADMINISTRATOR SIDEBAR DESK -->
+                <!-- SCHOOL MASTER ADMINISTRATOR SIDEBAR DESK -->
                 <?php if ($role === 'SCHOOL_ADMIN'): ?>
                     <div class="sidebar-heading">School Management</div>
                     <a href="<?= Url::toRoute(['site/school-admin']) ?>" class="sidebar-link <?= $currentRoute === 'site/school-admin' ? 'active' : '' ?>"><i class="bi bi-shield-shaded"></i> Admin Dashboard</a>
                     <a href="<?= Url::toRoute(['site/signup']) ?>" class="sidebar-link <?= $currentRoute === 'site/signup' ? 'active' : '' ?>"><i class="bi bi-person-plus-fill"></i> Provision Staff Account</a>
-                    
-                   <div class="sidebar-heading">Financial Audits</div>
+
+                    <div class="sidebar-heading">Financial Audits</div>
                     <a href="<?= Url::toRoute(['site/bursar']) ?>" class="sidebar-link <?= $currentRoute === 'site/bursar' ? 'active' : '' ?>"><i class="bi bi-receipt-cutoff"></i> Collections Ledger</a>
                     <a href="<?= Url::toRoute(['site/students-directory']) ?>" class="sidebar-link <?= $currentRoute === 'site/students-directory' ? 'active' : '' ?>"><i class="bi bi-people-fill"></i> Student Directory</a>
-                    
-                    
+
                     <div class="sidebar-heading">Academic Moderation</div>
-                    <a href="<?= Url::toRoute(['site/dos-review']) ?>" class="sidebar-link"><i class="bi bi-clipboard-check"></i> Review & Seal Marks</a>
-                    <a href="<?= Url::toRoute(['site/manage-assignments']) ?>" class="sidebar-link"><i class="bi bi-person-gear"></i> Allocate Teachers</a>
-                    <a href="<?= Url::toRoute(['site/print-reports']) ?>" class="sidebar-link"><i class="bi bi-printer"></i> Print Report Cards</a>
+                    <a href="<?= Url::toRoute(['site/dos-review']) ?>" class="sidebar-link <?= $currentRoute === 'site/dos-review' ? 'active' : '' ?>"><i class="bi bi-clipboard-check"></i> Review &amp; Seal Marks</a>
+                    <a href="<?= Url::toRoute(['site/manage-assignments']) ?>" class="sidebar-link <?= $currentRoute === 'site/manage-assignments' ? 'active' : '' ?>"><i class="bi bi-person-gear"></i> Allocate Teachers</a>
+                    <a href="<?= Url::toRoute(['site/print-reports']) ?>" class="sidebar-link <?= $currentRoute === 'site/print-reports' ? 'active' : '' ?>"><i class="bi bi-printer"></i> Print Report Cards</a>
                 <?php endif; ?>
 
 
@@ -276,7 +284,6 @@ if (!in_array($currentRoute, ['site/index', 'site/login'], true)):
                 <?php endif; ?>
 
 
-
                 <!-- TEACHER SIDEBAR CONTROLS -->
                 <?php if ($role === 'TEACHER'): ?>
                     <div class="sidebar-heading">Classroom Grading</div>
@@ -286,11 +293,112 @@ if (!in_array($currentRoute, ['site/index', 'site/login'], true)):
                 <!-- D.O.S. SIDEBAR CONTROLS -->
                 <?php if ($role === 'DOS' || $role === 'SUPER_ADMIN'): ?>
                     <div class="sidebar-heading">Academic Moderation</div>
-                    <a href="<?= Url::toRoute(['site/dos-review']) ?>" class="sidebar-link <?= $currentRoute === 'site/dos-review' ? 'active' : '' ?>"><i class="bi bi-clipboard-check"></i> Review & Seal Marks</a>
-                     <a href="<?= Url::toRoute(['site/manage-assignments']) ?>" class="sidebar-link <?= $currentRoute === 'site/manage-assignments' ? 'active' : '' ?>"><i class="bi bi-person-gear"></i> Allocate Teachers</a>
+                    <a href="<?= Url::toRoute(['site/dos-review']) ?>" class="sidebar-link <?= $currentRoute === 'site/dos-review' ? 'active' : '' ?>"><i class="bi bi-clipboard-check"></i> Review &amp; Seal Marks</a>
+                    <a href="<?= Url::toRoute(['site/manage-assignments']) ?>" class="sidebar-link <?= $currentRoute === 'site/manage-assignments' ? 'active' : '' ?>"><i class="bi bi-person-gear"></i> Allocate Teachers</a>
                     <a href="<?= Url::toRoute(['site/print-reports']) ?>" class="sidebar-link <?= $currentRoute === 'site/print-reports' ? 'active' : '' ?>"><i class="bi bi-printer"></i> Print Report Cards</a>
                 <?php endif; ?>
             </div>
+
+<style>
+    :root {
+        --kora-blue-900: #0b2a52;
+        --kora-blue-800: #0f3a70;
+        --kora-blue-700: #14488a;
+        --kora-blue-accent: #3b82f6;
+        --kora-blue-soft: rgba(59, 130, 246, 0.16);
+    }
+
+    /* ===== Sidebar ===== */
+    .sidebar-panel.side {
+        background: linear-gradient(180deg, var(--kora-blue-900) 0%, var(--kora-blue-800) 100%);
+        min-height: 100vh;
+        padding-top: 0.75rem;
+        box-shadow: 2px 0 12px rgba(11, 42, 82, 0.15);
+    }
+
+    .sidebar-brand-block {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        margin-bottom: 0.75rem;
+    }
+
+    .sidebar-brand-mark {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 9px;
+        background: var(--kora-blue-accent);
+        color: #fff;
+        font-size: 1rem;
+    }
+
+    .sidebar-brand-text {
+        color: #fff;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        font-size: 1.05rem;
+    }
+
+    .role-badge {
+        background: var(--kora-blue-accent);
+        color: #fff;
+        font-weight: 600;
+        font-size: 0.72rem;
+        letter-spacing: 0.03em;
+    }
+
+    .sidebar-heading {
+        color: rgba(255, 255, 255, 0.45);
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        padding: 0.9rem 1.25rem 0.4rem;
+    }
+
+    .sidebar-link {
+        display: flex;
+        align-items: center;
+        gap: 0.65rem;
+        padding: 0.6rem 1.25rem;
+        margin: 0.05rem 0.6rem;
+        border-radius: 8px;
+        color: rgba(255, 255, 255, 0.75);
+        text-decoration: none;
+        font-size: 0.9rem;
+        font-weight: 500;
+        transition: background-color 0.15s ease, color 0.15s ease, transform 0.15s ease;
+    }
+
+    .sidebar-link i {
+        font-size: 1rem;
+        width: 20px;
+        text-align: center;
+        color: rgba(255, 255, 255, 0.55);
+        transition: color 0.15s ease;
+    }
+
+    .sidebar-link:hover {
+        background: rgba(255, 255, 255, 0.06);
+        color: #fff;
+        transform: translateX(2px);
+    }
+
+    .sidebar-link:hover i {
+        color: #fff;
+    }
+
+    .sidebar-link.active {
+        background: var(--kora-blue-accent);
+        color: #fff;
+        box-shadow: 0 4px 10px rgba(59, 130, 246, 0.35);
+    }
+
+    .sidebar-link.active i {
+        color: #fff;
+    }
+</style>
 
             <div class="workspace-content container-fluid px-4">
                 <?php if (!empty($this->params['breadcrumbs'])): ?>

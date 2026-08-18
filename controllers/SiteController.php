@@ -350,49 +350,75 @@ class SiteController extends Controller
         ]);
     }
 
-    public function actionStudentsDirectory()
-    {
-        if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
-            return $this->redirect(['site/login']);
-        }
-
-        $userSchoolId = Yii::$app->user->identity->school_id;
-        $request = Yii::$app->request;
-
-        $searchKeyword = trim($request->get('q', ''));
-        $balanceFilter = trim($request->get('balance_status', 'ALL'));
-
-        $studentQuery = Students::find()->where(['school_id' => $userSchoolId]);
-        
-        if (!empty($searchKeyword)) {
-            $studentQuery->andWhere(['or', ['ilike', 'name', $searchKeyword], ['payment_code' => $searchKeyword]]);
-        }
-        
-        if ($balanceFilter === 'OWING') {
-            $studentQuery->andWhere(['>', 'tuition_balance', 0]);
-        } elseif ($balanceFilter === 'CLEARED') {
-            $studentQuery->andWhere(['<=', 'tuition_balance', 0]);
-        }
-
-        $studentCountQuery = clone $studentQuery;
-        $studentPages = new \yii\data\Pagination([
-            'totalCount' => (int) $studentCountQuery->count(),
-            'pageSize' => 20,
-            'pageParam' => 'p_student',
-        ]);
-        
-        $allStudents = $studentQuery->offset($studentPages->offset)
-            ->limit($studentPages->limit)
-            ->orderBy(['name' => SORT_ASC])
-            ->all();
-
-        return $this->render('students_directory', [
-            'allStudents' => $allStudents,
-            'studentPages' => $studentPages,
-            'searchKeyword' => $searchKeyword,
-            'balanceFilter' => $balanceFilter,
-        ]);
+ public function actionStudentsDirectory()
+{
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+        return $this->redirect(['site/login']);
     }
+
+    $userSchoolId = Yii::$app->user->identity->school_id;
+    $request = Yii::$app->request;
+
+    $searchKeyword = trim($request->get('q', ''));
+    $balanceFilter = trim($request->get('balance_status', 'ALL'));
+    $classLevel    = trim($request->get('class_level', 'ALL'));
+    $sort          = trim($request->get('sort', ''));
+
+    // Distinct class levels actually present for this school, for the filter dropdown.
+    $classLevels = Students::find()
+        ->select('class_level')
+        ->distinct()
+        ->where(['school_id' => $userSchoolId])
+        ->orderBy(['class_level' => SORT_ASC])
+        ->column();
+
+    $studentQuery = Students::find()->where(['school_id' => $userSchoolId]);
+
+    if (!empty($searchKeyword)) {
+        $studentQuery->andWhere(['or', ['ilike', 'name', $searchKeyword], ['payment_code' => $searchKeyword]]);
+    }
+
+    if ($balanceFilter === 'OWING') {
+        $studentQuery->andWhere(['>', 'tuition_balance', 0]);
+    } elseif ($balanceFilter === 'CLEARED') {
+        $studentQuery->andWhere(['<=', 'tuition_balance', 0]);
+    }
+
+    if ($classLevel !== 'ALL' && $classLevel !== '') {
+        // Whitelist against real values so an arbitrary GET param can't probe other data.
+        if (in_array($classLevel, $classLevels, true)) {
+            $studentQuery->andWhere(['class_level' => $classLevel]);
+        }
+    }
+
+    $studentCountQuery = clone $studentQuery;
+    $studentPages = new \yii\data\Pagination([
+        'totalCount' => (int) $studentCountQuery->count(),
+        'pageSize' => 20,
+        'pageParam' => 'p_student',
+    ]);
+
+    $orderBy = ['name' => SORT_ASC];
+    if ($sort === 'class_level') {
+        $orderBy = ['class_level' => SORT_ASC, 'name' => SORT_ASC];
+    } elseif ($sort === '-class_level') {
+        $orderBy = ['class_level' => SORT_DESC, 'name' => SORT_ASC];
+    }
+
+    $allStudents = $studentQuery->offset($studentPages->offset)
+        ->limit($studentPages->limit)
+        ->orderBy($orderBy)
+        ->all();
+
+    return $this->render('students_directory', [
+        'allStudents' => $allStudents,
+        'studentPages' => $studentPages,
+        'searchKeyword' => $searchKeyword,
+        'balanceFilter' => $balanceFilter,
+        'classLevel' => $classLevel,
+        'classLevels' => $classLevels,
+    ]);
+}
 
 
 public function actionProcessPayment()
@@ -763,67 +789,106 @@ public function actionProcessPayment()
         return $this->render('create_school', ['model' => $model]);
     }
 
-         public function actionRegisterStudent()
-    {
-        if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
-            Yii::$app->session->setFlash('error', 'Unauthorized administrative access level clearance.');
-            return $this->redirect(['site/login']);
+public function actionRegisterStudent()
+{
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+        Yii::$app->session->setFlash('error', 'Unauthorized administrative access level clearance.');
+        return $this->redirect(['site/login']);
+    }
+
+    $userSchoolId = Yii::$app->user->identity->school_id;
+    $school = Schools::findOne($userSchoolId);
+
+    if (!$school) {
+        Yii::$app->session->setFlash('error', 'Your administrative account is not assigned to a valid school structure.');
+        return $this->redirect(['site/bursar']);
+    }
+
+    $studentModel = new Students();
+
+    if (Yii::$app->request->isPost) {
+        $postData = Yii::$app->request->post('Students');
+
+        $studentModel->school_id = $userSchoolId;
+        $studentModel->name = trim($postData['name'] ?? '');
+        $studentModel->class_level = trim($postData['class_level'] ?? '');
+
+        $studentModel->optional_subjects = trim($postData['optional_subjects'] ?? '');
+        $studentModel->a_level_combination = strtoupper(trim($postData['a_level_combination'] ?? ''));
+
+        // Sex — whitelist against known values so nothing unexpected lands in the column.
+        $sex = strtoupper(trim($postData['sex'] ?? ''));
+        $studentModel->sex = in_array($sex, ['MALE', 'FEMALE'], true) ? $sex : null;
+
+        // Date of birth — validate it's a real date before saving.
+        $dob = trim($postData['date_of_birth'] ?? '');
+        if ($dob !== '' && \DateTime::createFromFormat('Y-m-d', $dob) !== false) {
+            $studentModel->date_of_birth = $dob;
+        } else {
+            $studentModel->date_of_birth = null;
         }
 
-        $userSchoolId = Yii::$app->user->identity->school_id;
-        $school = Schools::findOne($userSchoolId);
+        // Apply School Rule
+        $studentModel->tuition_balance = (float)$school->base_tuition_fees;
+        $studentModel->swallet_balance = 0.00;
+        $studentModel->daily_spend_limit = 5000.00;
+        $studentModel->status = 'ACTIVE';
 
-        if (!$school) {
-            Yii::$app->session->setFlash('error', 'Your administrative account is not assigned to a valid school structure.');
-            return $this->redirect(['site/bursar']);
-        }
+        // Formula: 10 + 2-digit school ID prefix + 6 random digits
+        $schoolPrefix = str_pad((string)$userSchoolId, 2, '0', STR_PAD_LEFT);
+        $randomSequence = str_pad((string)rand(0, 999999), 6, '0', STR_PAD_LEFT);
+        $generatedCode = '10' . $schoolPrefix . $randomSequence;
 
-        $studentModel = new Students();
-
-        if (Yii::$app->request->isPost) {
-            $postData = Yii::$app->request->post('Students');
-            
-            $studentModel->school_id = $userSchoolId;
-            $studentModel->name = trim($postData['name'] ?? '');
-            $studentModel->class_level = trim($postData['class_level'] ?? '');
-            
-            $studentModel->optional_subjects = trim($postData['optional_subjects'] ?? '');
-            $studentModel->a_level_combination = strtoupper(trim($postData['a_level_combination'] ?? ''));
-            
-            // Apply School Rule
-            $studentModel->tuition_balance = (float)$school->base_tuition_fees;
-            $studentModel->swallet_balance = 0.00;
-            $studentModel->daily_spend_limit = 5000.00; 
-            $studentModel->status = 'ACTIVE';
-
-            // Formula: 10 + 2-digit school ID prefix + 6 random digits
-            $schoolPrefix = str_pad((string)$userSchoolId, 2, '0', STR_PAD_LEFT);
+        // Integrity safeguard check
+        while (Students::findOne(['payment_code' => $generatedCode])) {
             $randomSequence = str_pad((string)rand(0, 999999), 6, '0', STR_PAD_LEFT);
             $generatedCode = '10' . $schoolPrefix . $randomSequence;
-
-            // Integrity safeguard check
-            while (Students::findOne(['payment_code' => $generatedCode])) {
-                $randomSequence = str_pad((string)rand(0, 999999), 6, '0', STR_PAD_LEFT);
-                $generatedCode = '10' . $schoolPrefix . $randomSequence;
-            }
-
-            $studentModel->payment_code = $generatedCode;
-
-            if ($studentModel->save(false)) {
-                Yii::$app->session->setFlash('success', "Student file compiled successfully! Generated SchoolPay Code: " . $generatedCode);
-                return $this->redirect(['site/bursar']);
-            } else {
-                Yii::$app->session->setFlash('error', 'Database mapping crash. Enrollment aborted.');
-            }
         }
 
-        return $this->render('register_student', [
-            'model' => $studentModel,
-            'schoolName' => $school->name,
-            'baseFees' => $school->base_tuition_fees
-        ]);
+        $studentModel->payment_code = $generatedCode;
+
+        // Student photo — optional, converted to base64 same as the Settings page.
+        $uploadedFile = \yii\web\UploadedFile::getInstanceByName('student_photo');
+        if ($uploadedFile !== null) {
+            $allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+            $maxSizeBytes = 2 * 1024 * 1024;
+
+            if (!in_array($uploadedFile->type, $allowedTypes, true)) {
+                Yii::$app->session->setFlash('error', 'Student photo must be a JPG, PNG, or WEBP image.');
+                return $this->render('register_student', [
+                    'model' => $studentModel,
+                    'schoolName' => $school->name,
+                    'baseFees' => $school->base_tuition_fees,
+                ]);
+            }
+
+            if ($uploadedFile->size > $maxSizeBytes) {
+                Yii::$app->session->setFlash('error', 'Student photo must be under 2MB.');
+                return $this->render('register_student', [
+                    'model' => $studentModel,
+                    'schoolName' => $school->name,
+                    'baseFees' => $school->base_tuition_fees,
+                ]);
+            }
+
+            $imageData = file_get_contents($uploadedFile->tempName);
+            $studentModel->profile_photo = 'data:' . $uploadedFile->type . ';base64,' . base64_encode($imageData);
+        }
+
+        if ($studentModel->save(false)) {
+            Yii::$app->session->setFlash('success', "Student file compiled successfully! Generated SchoolPay Code: " . $generatedCode);
+            return $this->redirect(['site/bursar']);
+        } else {
+            Yii::$app->session->setFlash('error', 'Database mapping crash. Enrollment aborted.');
+        }
     }
-        
+
+    return $this->render('register_student', [
+        'model' => $studentModel,
+        'schoolName' => $school->name,
+        'baseFees' => $school->base_tuition_fees
+    ]);
+}
     public function actionEditSchool($id)
     {
         $model = Schools::findOne($id);
@@ -942,8 +1007,9 @@ public function actionProcessPayment()
       
     public function actionDeleteStudent($id)
     {
-        if (Yii::$app->user->isGuest || Yii::$app->user->identity->role !== ['BURSAR','SCHOOL_ADMIN']) {
-            throw new \yii\web\ForbiddenHttpException("Unauthorized administrative credentials.");
+       if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+            Yii::$app->session->setFlash('error', 'Unauthorized administrative access level clearance.');
+            return $this->redirect(['site/login']);
         }
 
         $userSchoolId = Yii::$app->user->identity->school_id;
@@ -986,9 +1052,10 @@ public function actionProcessPayment()
     
     public function actionMarkNoShow($id)
     {
-        if (Yii::$app->user->isGuest || Yii::$app->user->identity->role !== ['BURSAR','SCHOOL_ADMIN']) {
-            throw new \yii\web\ForbiddenHttpException();
-        }
+       $identity = Yii::$app->user->identity;
+
+    if (Yii::$app->user->isGuest || !in_array($identity->role, ['BURSAR', 'SCHOOL_ADMIN'], true)) {
+        throw new \yii\web\ForbiddenHttpException();}
 
         $userSchoolId = Yii::$app->user->identity->school_id;
 
@@ -1020,13 +1087,15 @@ public function actionProcessPayment()
         }
 
         return $this->redirect(['site/bursar']);
-    }
+    } 
 
      
     public function actionTermRollover()
     {
-        if (Yii::$app->user->isGuest || Yii::$app->user->identity->role !== ['BURSAR','SCHOOL_ADMIN']) {
-            throw new \yii\web\ForbiddenHttpException();
+           $identity = Yii::$app->user->identity;
+
+    if (Yii::$app->user->isGuest || !in_array($identity->role, ['BURSAR', 'SCHOOL_ADMIN'], true)) {
+        throw new \yii\web\ForbiddenHttpException();
         }
 
         $userSchoolId = Yii::$app->user->identity->school_id;
@@ -1075,12 +1144,10 @@ public function actionProcessPayment()
         $schoolId = Yii::$app->user->identity->school_id;
         $request = Yii::$app->request;
 
-        // 1. Fetch only the class levels and subjects assigned strictly to this teacher
         $assignments = Yii::$app->db->createCommand(
             'SELECT id, class_level, subject_name FROM teacher_assignments WHERE teacher_id = :tid AND school_id = :sid'
         )->bindValues([':tid' => $teacherId, ':sid' => $schoolId])->queryAll();
 
-        // 2. Read selected filters from the query line
         $selectedAssignmentId = (int)$request->get('assignment_id', 0);
         $selectedTerm = $request->get('term', 'TERM_1');
         $academicYear = (int)date('Y');
@@ -1243,7 +1310,7 @@ public function actionSubmitMarks()
             }
 
             $dbTransaction->commit();
-            Yii::$app->session->setFlash('success', "Marks saved securely under Kora Core Engine parameters.");
+            Yii::$app->session->setFlash('success', "Marks added to Dos Queue.");
         } catch (\Exception $e) {
             $dbTransaction->rollBack();
             Yii::$app->session->setFlash('error', "Grading commit crash: " . $e->getMessage());
@@ -1254,55 +1321,104 @@ public function actionSubmitMarks()
     throw new \yii\web\ForbiddenHttpException();
 }
 
-     
-    public function actionDosReview()
-    {
-        if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['DOS', 'SUPER_ADMIN', 'SCHOOL_ADMIN'])) {
-            return $this->redirect(['site/login']);
-        }
 
-        $schoolId = Yii::$app->user->identity->school_id;
-        $request = Yii::$app->request;
-        
-        $selectedClass = $request->get('class_level', 'Senior 1');
-        $selectedTerm = $request->get('term', 'TERM_1');
-        $academicYear = (int)date('Y');
-
-        //  FIXED AGGREGATOR MATH: Accurately checks row statuses independently for dynamic term updates
-        $marksSummary = Yii::$app->db->createCommand(
-            "SELECT subject_name,
-                    COUNT(id) AS total_entries,
-                    SUM(CASE WHEN bot_status = 'PENDING_REVIEW' OR mot_status = 'PENDING_REVIEW' OR eot_status = 'PENDING_REVIEW' THEN 1 ELSE 0 END) AS pending_rows,
-                    SUM(CASE WHEN bot_status = 'REJECTED_AMEND' OR mot_status = 'REJECTED_AMEND' OR eot_status = 'REJECTED_AMEND' THEN 1 ELSE 0 END) AS rejected_rows,
-                    SUM(CASE WHEN bot_status = 'APPROVED_SEALED' OR mot_status = 'APPROVED_SEALED' OR eot_status = 'APPROVED_SEALED' THEN 1 ELSE 0 END) AS sealed_rows
-             FROM academic_marks
-             WHERE school_id = :sid AND class_level = :cls AND term = :trm AND academic_year = :yr
-             GROUP BY subject_name
-             ORDER BY subject_name ASC"
-        )->bindValues([
-            ':sid' => $schoolId, ':cls' => $selectedClass, ':trm' => $selectedTerm, ':yr' => $academicYear
-        ])->queryAll();
-
-        //  RAW ENTRIES FETCH: Gathers comprehensive student rows alongside their dynamic validation attributes
-        $rawRecords = Yii::$app->db->createCommand(
-            'SELECT m.*, s.name as student_name 
-             FROM academic_marks m
-             JOIN students s ON m.student_id = s.id
-             WHERE m.school_id = :sid AND m.class_level = :cls AND m.term = :trm AND m.academic_year = :yr
-             ORDER BY m.subject_name ASC, s.name ASC'
-        )->bindValues([
-            ':sid' => $schoolId, ':cls' => $selectedClass, ':trm' => $selectedTerm, ':yr' => $academicYear
-        ])->queryAll();
-
-        return $this->render('dos_review', [
-            'marksSummary' => $marksSummary,
-            'rawRecords' => $rawRecords,
-            'selectedClass' => $selectedClass,
-            'selectedTerm' => $selectedTerm,
-        ]);
+public function actionDosReview()
+{
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['DOS', 'SUPER_ADMIN', 'SCHOOL_ADMIN'])) {
+        return $this->redirect(['site/login']);
     }
 
+    $schoolId = Yii::$app->user->identity->school_id;
+    $request = Yii::$app->request;
 
+    $selectedClass   = $request->get('class_level', 'Senior 1');
+    $selectedTerm    = $request->get('term', 'TERM_1');
+    $selectedSubject = $request->get('subject', '');           // '' = all subjects
+    $onlyPending     = $request->get('status') === 'pending';  // toggled via the "Show pending only" link
+    $pageSize        = (int) $request->get('per_page', 20);
+    $pageSize        = in_array($pageSize, [25, 50, 100], true) ? $pageSize : 20;
+    $academicYear    = (int) date('Y');
+
+    $db = Yii::$app->db;
+
+    $marksSummary = $db->createCommand(
+        "SELECT subject_name,
+                COUNT(id) AS total_entries,
+                SUM(CASE WHEN bot_status = 'PENDING_REVIEW' OR mot_status = 'PENDING_REVIEW' OR eot_status = 'PENDING_REVIEW' THEN 1 ELSE 0 END) AS pending_rows,
+                SUM(CASE WHEN bot_status = 'REJECTED_AMEND' OR mot_status = 'REJECTED_AMEND' OR eot_status = 'REJECTED_AMEND' THEN 1 ELSE 0 END) AS rejected_rows,
+                SUM(CASE WHEN bot_status = 'APPROVED_SEALED' OR mot_status = 'APPROVED_SEALED' OR eot_status = 'APPROVED_SEALED' THEN 1 ELSE 0 END) AS sealed_rows
+         FROM academic_marks
+         WHERE school_id = :sid AND class_level = :cls AND term = :trm AND academic_year = :yr
+         GROUP BY subject_name
+         ORDER BY subject_name ASC"
+    )->bindValues([
+        ':sid' => $schoolId, ':cls' => $selectedClass, ':trm' => $selectedTerm, ':yr' => $academicYear,
+    ])->queryAll();
+
+    $subjectList = [];
+    $pendingBySubject = [];
+    foreach ($marksSummary as $row) {
+        $subjectList[] = $row['subject_name'];
+        $pendingBySubject[$row['subject_name']] = (int) $row['pending_rows'];
+    }
+    $pendingTotal = $selectedSubject !== ''
+        ? ($pendingBySubject[$selectedSubject] ?? 0)
+        : array_sum($pendingBySubject);
+
+    // ---- Filtered WHERE clause shared by the count query and the page query ----
+    $where = 'm.school_id = :sid AND m.class_level = :cls AND m.term = :trm AND m.academic_year = :yr';
+    $params = [':sid' => $schoolId, ':cls' => $selectedClass, ':trm' => $selectedTerm, ':yr' => $academicYear];
+
+    if ($selectedSubject !== '') {
+        $where .= ' AND m.subject_name = :subj';
+        $params[':subj'] = $selectedSubject;
+    }
+
+    if ($onlyPending) {
+        $where .= " AND (m.bot_status = 'PENDING_REVIEW' OR m.mot_status = 'PENDING_REVIEW' OR m.eot_status = 'PENDING_REVIEW')";
+    }
+
+    $totalCount = (int) $db->createCommand(
+        "SELECT COUNT(*) FROM academic_marks m WHERE $where"
+    )->bindValues($params)->queryScalar();
+
+    $pagination = new \yii\data\Pagination([
+        'totalCount'    => $totalCount,
+        'pageSize'      => $pageSize,
+        'pageSizeParam' => 'per_page',
+        'params'        => array_filter([
+            'class_level' => $selectedClass,
+            'term'        => $selectedTerm,
+            'subject'     => $selectedSubject,
+            'status'      => $onlyPending ? 'pending' : null,
+            'per_page'    => $pageSize,
+        ]),
+    ]);
+
+    // LIMIT/OFFSET are interpolated directly (not bound) — both are cast to int
+    // by Pagination above, so this is safe and sidesteps LIMIT/OFFSET binding
+    // quirks some PDO/MySQL configs have with named params.
+    $rawRecords = $db->createCommand(
+        "SELECT m.*, s.name as student_name
+         FROM academic_marks m
+         JOIN students s ON m.student_id = s.id
+         WHERE $where
+         ORDER BY m.subject_name ASC, s.name ASC
+         LIMIT " . (int) $pagination->limit . " OFFSET " . (int) $pagination->offset
+    )->bindValues($params)->queryAll();
+
+    return $this->render('dos_review', [
+        'marksSummary'    => $marksSummary,
+        'rawRecords'      => $rawRecords,
+        'selectedClass'   => $selectedClass,
+        'selectedTerm'    => $selectedTerm,
+        'selectedSubject' => $selectedSubject,
+        'onlyPending'     => $onlyPending,
+        'subjectList'     => $subjectList,
+        'pagination'      => $pagination,
+        'pendingTotal'    => $pendingTotal,
+    ]);
+}
    
     public function actionSealMarks()
     {
@@ -1400,9 +1516,10 @@ public function actionSubmitMarks()
         throw new \yii\web\ForbiddenHttpException();
     }  
     
+   
     public function actionPrintReports()
     {
-        if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['DOS', 'SUPER_ADMIN','SCHOOL_ADMIN'])) {
+        if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['DOS', 'SUPER_ADMIN', 'SCHOOL_ADMIN'])) {
             return $this->redirect(['site/login']);
         }
 
@@ -1410,9 +1527,9 @@ public function actionSubmitMarks()
         $request = Yii::$app->request;
         
         $selectedClass = $request->get('class_level', 'Senior 1');
+        $selectedTerm = $request->get('term', 'TERM_1'); 
 
-        // Fetch all active students in the selected class layer to present print options
-        $students = Students::find()
+        $students = \app\models\Students::find()
             ->where(['school_id' => $schoolId, 'class_level' => $selectedClass, 'status' => 'ACTIVE'])
             ->orderBy(['name' => SORT_ASC])
             ->all();
@@ -1420,8 +1537,10 @@ public function actionSubmitMarks()
         return $this->render('print_reports', [
             'students' => $students,
             'selectedClass' => $selectedClass,
+            'selectedTerm' => $selectedTerm, // Passes variable down to fix the undefined crash
         ]);
     }
+
 
    
     public function actionViewReportCard($id, $term = 'TERM_1')
@@ -1671,5 +1790,165 @@ public function actionBulkModerateMarks()
     }
 
     return $this->redirect(['site/dos-review', 'class_level' => $classLevel, 'term' => $term]);
+}
+
+    /**
+     * Action: Compiles all cleared student reports in a stream for instant batch printing
+     */
+    public function actionBatchPrintReports($class_level, $term = 'TERM_1')
+    {
+        if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['DOS', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
+            return $this->redirect(['site/login']);
+        }
+
+        $schoolId = Yii::$app->user->identity->school_id;
+        $academicYear = (int)date('Y');
+
+        // 🔥 PERFORMANCE LIMIT PATTERN: Isolates strictly ACTIVE, financially cleared students 
+        // to prevent defaulting records from bloating memory space blocks
+        $students = \app\models\Students::find()
+            ->where(['school_id' => $schoolId, 'class_level' => $class_level, 'status' => 'ACTIVE'])
+            ->andWhere(['<=', 'tuition_balance', 0])
+            ->orderBy(['name' => SORT_ASC])
+            ->all();
+
+        if (empty($students)) {
+            Yii::$app->session->setFlash('error', 'Batch Operation Cancelled: No fully paid, cleared student records found in this class.');
+            return $this->redirect(['site/print-reports', 'class_level' => $class_level]);
+        }
+
+        $batchGrades = [];
+        foreach ($students as $st) {
+            $batchGrades[$st->id] = Yii::$app->db->createCommand(
+                'SELECT * FROM academic_marks WHERE student_id = :sid AND term = :trm AND academic_year = :yr'
+            )->bindValues([':sid' => $st->id, ':trm' => $term, ':yr' => $academicYear])->queryAll();
+        }
+
+        return $this->renderPartial('batch_print_reports', [
+            'students' => $students,
+            'batchGrades' => $batchGrades,
+            'term' => $term,
+            'year' => $academicYear,
+            'classLevel' => $class_level
+        ]);
+    }
+
+  
+    public function actionExportClassMarks($class_level, $term = 'TERM_1')
+    {
+        if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'DOS', 'SCHOOL_ADMIN'])) {
+            throw new \yii\web\ForbiddenHttpException();
+        }
+
+        $schoolId = Yii::$app->user->identity->school_id;
+        $academicYear = (int)date('Y');
+
+        // Fetch raw data tuples to convert directly into csv string elements
+        $records = Yii::$app->db->createCommand(
+            "SELECT s.name, s.payment_code, m.subject_name, m.bot_mark, m.mot_mark, m.eot_mark, m.teacher_comment
+             FROM academic_marks m
+             JOIN students s ON m.student_id = s.id
+             WHERE m.school_id = :sid AND m.class_level = :cls AND m.term = :trm AND m.academic_year = :yr
+             ORDER BY s.name ASC, m.subject_name ASC"
+        )->bindValues([':sid' => $schoolId, ':cls' => $class_level, ':trm' => $term, ':yr' => $academicYear])->queryAll();
+
+        $fileName = str_replace(' ', '_', $class_level) . "_{$term}_Marks_Ledger.csv";
+        
+        // Broadcast streaming down line variables straight to standard download headers
+        Yii::$app->response->getHeaders()
+            ->set('Content-Type', 'text/csv; charset=utf-8')
+            ->set('Content-Disposition', "attachment; filename={$fileName}");
+
+        $outputBuffer = fopen('php://output', 'w');
+        fputcsv($outputBuffer, ['Student Full Name', 'Payment Code', 'Subject Course', 'BOT (20%)', 'MOT (30%)', 'EOT (50%)', 'Teacher Comment']);
+
+        foreach ($records as $row) {
+            fputcsv($outputBuffer, [
+                $row['name'], $row['payment_code'], $row['subject_name'], 
+                $row['bot_mark'], $row['mot_mark'], $row['eot_mark'], $row['teacher_comment']
+            ]);
+        }
+        fclose($outputBuffer);
+        exit();
+    }
+
+
+ 
+public function actionSettings()
+{
+    if (Yii::$app->user->isGuest) {
+        return $this->redirect(['site/login']);
+    }
+
+    $user = Yii::$app->user->identity;
+
+    if (Yii::$app->request->isPost) {
+        $newUsername = trim((string) Yii::$app->request->post('username', ''));
+
+        if ($newUsername === '') {
+            Yii::$app->session->setFlash('error', 'Username cannot be empty.');
+            return $this->redirect(['site/settings']);
+        }
+
+        if (!preg_match('/^[a-zA-Z0-9_.]{3,32}$/', $newUsername)) {
+            Yii::$app->session->setFlash('error', 'Username must be 3-32 characters: letters, numbers, dots, or underscores only.');
+            return $this->redirect(['site/settings']);
+        }
+
+        // Uses $user's own class (already the loaded identity) instead of a hardcoded
+        // model name — avoids needing to know/import the exact class here.
+        $usernameTaken = $user::find()
+            ->where(['username' => $newUsername])
+            ->andWhere(['!=', 'id', $user->id])
+            ->exists();
+
+        if ($usernameTaken) {
+            Yii::$app->session->setFlash('error', 'That username is already taken.');
+            return $this->redirect(['site/settings']);
+        }
+
+        $user->username = $newUsername;
+
+        $uploadedFile = \yii\web\UploadedFile::getInstanceByName('profile_photo');
+        if ($uploadedFile !== null) {
+            $allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+            $maxSizeBytes = 2 * 1024 * 1024; // 2MB cap — base64 already inflates size ~33%
+
+            if (!in_array($uploadedFile->type, $allowedTypes, true)) {
+                Yii::$app->session->setFlash('error', 'Profile picture must be a JPG, PNG, or WEBP image.');
+                return $this->redirect(['site/settings']);
+            }
+
+            if ($uploadedFile->size > $maxSizeBytes) {
+                Yii::$app->session->setFlash('error', 'Profile picture must be under 2MB.');
+                return $this->redirect(['site/settings']);
+            }
+
+            $imageData = file_get_contents($uploadedFile->tempName);
+            $user->profile_photo = 'data:' . $uploadedFile->type . ';base64,' . base64_encode($imageData);
+        }
+
+        if ($user->save(false)) {
+            Yii::$app->session->setFlash('success', 'Settings updated successfully.');
+        } else {
+            Yii::$app->session->setFlash('error', 'Failed to update settings.');
+        }
+
+        return $this->redirect(['site/settings']);
+    }
+
+    // Read-only view of a teacher's assigned classes/subjects — they can see but not edit these here.
+    $assignments = [];
+    if (($user->role ?? null) === 'TEACHER') {
+        $assignments = \app\models\TeacherAssignment::find()
+            ->where(['teacher_id' => $user->id, 'school_id' => $user->school_id])
+            ->orderBy(['class_level' => SORT_ASC, 'subject_name' => SORT_ASC])
+            ->all();
+    }
+
+    return $this->render('settings', [
+        'user' => $user,
+        'assignments' => $assignments,
+    ]);
 }
 }
