@@ -29,29 +29,29 @@ function calculateUnebGrade($bot, $mot, $eot) {
 function columnStatusMeta(string $status): array {
     switch ($status) {
         case 'APPROVED_SEALED':
-            return ['background-color:#e6f6ec;', 'cell-sealed', '<i class="bi bi-check-circle-fill text-success ms-1" title="Sealed"></i>'];
+            return ['background-color:#e3f4ea;', 'cell-sealed', '<i class="bi bi-check-circle-fill text-success ms-1" title="Sealed"></i>'];
         case 'REJECTED_AMEND':
-            return ['background-color:#fdecea;', 'cell-rejected', '<i class="bi bi-x-circle-fill text-danger ms-1" title="Returned for fix"></i>'];
+            return ['background-color:#fbe6e8;', 'cell-rejected', '<i class="bi bi-x-circle-fill text-danger ms-1" title="Returned for fix"></i>'];
         case 'PENDING_REVIEW':
-            return ['background-color:#eceff1;', 'cell-pending', '<i class="bi bi-hourglass-split text-secondary ms-1" title="Pending review"></i>'];
+            return ['background-color:#eaf1fb;', 'cell-pending', '<i class="bi bi-hourglass-split text-secondary ms-1" title="Pending review"></i>'];
         default:
             return ['', '', ''];
     }
 }
 ?>
 
-<div class="site-teacher-grading bg-light py-3 min-vh-100">
+<div class="site-teacher-grading py-4">
 
-    <div class="card card-body border-0 shadow-sm rounded-3 mb-4 p-4">
-        <h2 class="h4 fw-bold mb-1 text-dark"><i class="bi bi-journal-bookmark-fill text-primary me-2"></i>Academic Assessment Grading Grid</h2>
-        <p class="text-muted small mb-0">Select your active subject tier workflow below to manage terminal assessment grids.</p>
+    <div class="tg-page-header mb-4">
+        <h1 class="tg-page-title mb-1"><i class="bi bi-journal-bookmark-fill"></i> Academic Assessment Grading Grid</h1>
+        <p class="tg-page-subtitle mb-0">Select your active subject tier workflow below to manage terminal assessment grids.</p>
     </div>
 
-    <div class="card card-body border-0 shadow-sm rounded-3 p-3 mb-4 bg-white">
-        <form method="get" action="<?= Url::toRoute(['site/teacher-grading']) ?>" class="row g-2 align-items-end">
+    <div class="card tg-card border-0 rounded-3 p-3 mb-4">
+        <form method="get" action="<?= Url::toRoute(['site/teacher-grading']) ?>" class="row g-3 align-items-end">
             <div class="col-12 col-md-5">
-                <label class="form-label small fw-bold text-secondary">Active Subject & Classroom Allocation</label>
-                <select name="assignment_id" class="form-select form-select-sm fw-bold" onchange="this.form.submit()">
+                <label class="form-label small fw-bold tg-label">Active Subject &amp; Classroom Allocation</label>
+                <select name="assignment_id" class="form-select form-select-sm tg-input fw-semibold" onchange="this.form.submit()">
                     <?php foreach ($assignments as $asg): ?>
                         <option value="<?= $asg['id'] ?>" <?= $activeAssignment && (int)$asg['id'] === (int)$activeAssignment['id'] ? 'selected' : '' ?>>
                             <?= Html::encode($asg['class_level'] . ' - ' . $asg['subject_name']) ?>
@@ -60,24 +60,33 @@ function columnStatusMeta(string $status): array {
                 </select>
             </div>
             <div class="col-12 col-md-4">
-                <label class="form-label small fw-bold text-secondary">Target Term Assessment</label>
-                <select name="term" class="form-select form-select-sm fw-bold" onchange="this.form.submit()">
+                <label class="form-label small fw-bold tg-label">Target Term Assessment</label>
+                <select name="term" class="form-select form-select-sm tg-input fw-semibold" onchange="this.form.submit()">
                     <option value="TERM_1" <?= $selectedTerm === 'TERM_1' ? 'selected' : '' ?>>Term 1</option>
                     <option value="TERM_2" <?= $selectedTerm === 'TERM_2' ? 'selected' : '' ?>>Term 2</option>
                     <option value="TERM_3" <?= $selectedTerm === 'TERM_3' ? 'selected' : '' ?>>Term 3</option>
                 </select>
             </div>
             <div class="col-12 col-md-3">
-                <button type="submit" class="btn btn-sm btn-dark w-100 fw-bold"><i class="bi bi-arrow-clockwise"></i> Reload Sheet</button>
+                <button type="submit" class="btn btn-sm tg-btn-filter w-100 fw-bold"><i class="bi bi-arrow-clockwise"></i> Reload Sheet</button>
             </div>
         </form>
     </div>
 
 <?php if ($activeAssignment && !empty($studentsList)): ?>
 
-    <div class="mb-2">
-        <input type="text" id="teacherStudentSearchBox" class="form-control form-control-sm"
-               placeholder="Search by student name...">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3">
+        <div class="tg-class-badge">
+            <i class="bi bi-mortarboard"></i>
+            <?= Html::encode($activeAssignment['class_level']) ?>
+            <span class="tg-class-badge-divider">&middot;</span>
+            <?= Html::encode($activeAssignment['subject_name']) ?>
+        </div>
+        <div class="tg-search-wrap">
+            <i class="bi bi-search"></i>
+            <input type="text" id="teacherStudentSearchBox" class="form-control form-control-sm tg-input"
+                   placeholder="Search by student name...">
+        </div>
     </div>
 
     <?= Html::beginForm(['site/submit-marks'], 'post', ['id' => 'gradingSheetForm']) ?>
@@ -101,31 +110,31 @@ function columnStatusMeta(string $status): array {
         }
         ?>
 
-        <div class="card card-body border-0 shadow-sm rounded-3 p-3 mb-3 bg-dark text-white">
+        <div class="card tg-toolbar-card border-0 rounded-3 p-3 mb-3">
             <div class="row align-items-center g-3">
                 <div class="col-12 col-md-6">
-                    <span class="text-black fw-bold small"><i class="bi bi-info-circle-fill text-info me-1"></i> Check specific student rows to send partial grades, or commit all rows at once.</span>
+                    <span class="tg-toolbar-hint text-white"><i class="bi bi-info-circle-fill"></i> Check specific student rows to send partial grades, or commit all rows at once.</span>
                 </div>
-                <div class="col-12 col-md-6 text-md-end d-flex gap-2 justify-content-md-end">
-                    <button type="button" id="btnTeacherSubmitSelected" class="btn btn-sm btn-primary fw-bold px-3 rounded-2 shadow-sm"><i class="bi bi-check-square-fill"></i> Submit Selected Rows</button>
-                    <button type="button" id="btnTeacherSubmitAll" class="btn btn-sm btn-outline-success fw-bold px-3 rounded-2"><i class="bi bi-cloud-arrow-up-fill"></i> Submit All Rows</button>
+                <div class="col-12 col-md-6 text-md-end d-flex flex-wrap gap-2 justify-content-md-end">
+                    <button type="button" id="btnTeacherSubmitSelected" class="btn btn-sm tg-btn tg-btn-primary"><i class="bi bi-check-square-fill"></i> Submit Selected Rows</button>
+                    <button type="button" id="btnTeacherSubmitAll" class="btn btn-sm tg-btn tg-btn-primary-outline"><i class="bi bi-cloud-arrow-up-fill"></i> Submit All Rows</button>
                 </div>
             </div>
         </div>
 
         <!-- Legend / key -->
         <div class="d-flex flex-wrap gap-3 align-items-center mb-3 px-1">
-            <span class="small fw-bold text-secondary text-uppercase">Key:</span>
-            <span class="d-flex align-items-center small"><span class="legend-swatch cell-sealed me-1"></span> Sealed</span>
-            <span class="d-flex align-items-center small"><span class="legend-swatch cell-pending me-1"></span> Pending Review</span>
-            <span class="d-flex align-items-center small"><span class="legend-swatch cell-rejected me-1"></span> Rejected / Returned for Fix</span>
-            <span class="d-flex align-items-center small"><span class="legend-swatch cell-blank me-1"></span> Not Submitted</span>
+            <span class="small fw-bold tg-legend-label">Key:</span>
+            <span class="d-flex align-items-center small tg-legend-item"><span class="bi bi-check-circle-fill text-success ms-1 me-1"></span>  Sealed</span>
+            <span class="d-flex align-items-center small tg-legend-item"><span class="bi bi-hourglass-split text-secondary ms-1 me-1"></span> Pending Review</span>
+            <span class="d-flex align-items-center small tg-legend-item"><span class="lbi bi-x-circle-fill text-danger ms-1 me-1"></span> Rejected / Returned for Fix</span>
+            <span class="d-flex align-items-center small tg-legend-item"><span class="legend-swatch cell-blank me-1"></span> Not Submitted</span>
         </div>
 
-        <div class="card border-0 shadow-sm rounded-3 overflow-hidden bg-white mb-3">
+        <div class="card tg-table-card border-0 rounded-3 overflow-hidden mb-3">
             <div class="table-responsive">
-                <table id="teacherGradingTable" class="table table-hover align-middle mb-0 small">
-                    <thead class="table-dark text-xs font-monospace uppercase">
+                <table id="teacherGradingTable" class="table align-middle mb-0">
+                    <thead>
                         <tr>
                         <?php if ($showDosFeedbackColumn): ?>
                             <th class="text-center" style="width: 3%;">No</th>
@@ -135,8 +144,8 @@ function columnStatusMeta(string $status): array {
                             <th class="text-center" style="width: 7%;">MOT (30%)</th>
                             <th class="text-center" style="width: 7%;">EOT (50%)</th>
                             <th class="text-center" style="width: 7%;">UNEB Grade</th>
-                            <th class="pe-4" style="width: 25%;">Teacher Remarks & Comments</th>
-                            <th class="text-center text-danger" style="width: 22%;"><h6 class="fw-bold text-danger mb-1">DOS Comment</h6></th>
+                            <th class="pe-4" style="width: 25%;">Teacher Remarks &amp; Comments</th>
+                            <th class="text-center" style="width: 22%;">DOS Comment</th>
                         <?php else: ?>
                             <th class="text-center" style="width: 3%;">No</th>
                             <th class="text-center" style="width: 4%;">Select</th>
@@ -145,7 +154,7 @@ function columnStatusMeta(string $status): array {
                             <th class="text-center" style="width: 10%;">MOT (30%)</th>
                             <th class="text-center" style="width: 10%;">EOT (50%)</th>
                             <th class="text-center" style="width: 10%;">UNEB Grade</th>
-                            <th style="width: 31%;">Teacher Remarks & Comments</th>
+                            <th style="width: 31%;">Teacher Remarks &amp; Comments</th>
                             <?php endif; ?>
                         </tr>
                     </thead>
@@ -180,20 +189,20 @@ function columnStatusMeta(string $status): array {
                             [$eotCellStyle, $eotCellClass, $eotIcon] = columnStatusMeta($eotStatus);
                         ?>
                             <tr>
-                                <td class="text-center text-muted"><?= $rowNum++ ?></td>
+                                <td class="text-center tg-row-num"><?= $rowNum++ ?></td>
                                 <td class="text-center">
                                     <?php if ($userRole === 'SCHOOL_ADMIN' || !$rowFullyLocked): ?>
-                                        <input type="checkbox" name="selected_students[]" value="<?= $st->id ?>" class="form-check-input border-dark row-teacher-grid-checkbox">
+                                        <input type="checkbox" name="selected_students[]" value="<?= $st->id ?>" class="form-check-input row-teacher-grid-checkbox">
                                     <?php else: ?>
-                                        <i class="bi bi-lock-fill text-success small" title="Sealed and final"></i>
+                                        <i class="bi bi-lock-fill tg-locked-icon" title="Sealed and final"></i>
                                     <?php endif; ?>
                                 </td>
-                                <td class="ps-3 fw-bold text-dark">
+                                <td class="ps-3 fw-semibold tg-student-name">
                                     <?= Html::encode(ucwords($st->name)) ?>
                                 </td>
 
                                 <td class="<?= $botCellClass ?>" style="<?= $botCellStyle ?>">
-                                    <div class="d-flex align-items-center ">
+                                    <div class="d-flex align-items-center">
                                         <input type="text" name="Scores[<?= $st->id ?>][bot]" value="<?= $mBot ?>" <?= $disableBot ?> min="0" max="100" class="form-control form-control-sm text-center grading-input-score" data-weight="0.2" data-col="bot" data-row="<?= $st->id ?>">
                                         <?= $botIcon ?>
                                     </div>
@@ -213,20 +222,20 @@ function columnStatusMeta(string $status): array {
                                     </div>
                                     <input type="hidden" name="Scores[<?= $st->id ?>][eot_touched]" id="eotTouched<?= $st->id ?>" value="0">
                                 </td>
-                                <td class="text-center font-monospace fw-bold">
-                                    <span class="badge bg-light text-dark border px-2.5 py-1.5 fs-6 live-row-uneb-badge"><?= $uneb['G'] ?></span>
+                                <td class="text-center">
+                                    <span class="tg-uneb-badge live-row-uneb-badge"><?= $uneb['G'] ?></span>
                                 </td>
                                 <td>
-                                    <input type="text" name="Scores[<?= $st->id ?>][comment]" value="<?= Html::encode($mComment) ?>" class="form-control form-control-sm">
+                                    <input type="text" name="Scores[<?= $st->id ?>][comment]" value="<?= Html::encode($mComment) ?>" class="form-control form-control-sm tg-input">
                                 </td>
                                 <?php if ($showDosFeedbackColumn): ?>
                                     <td class="pe-3">
                                         <?php if (!empty($mDosFeedback)): ?>
-                                            <div class="p-1.5 rounded bg-white text-danger form-control form-control-sm font-monospace">
+                                            <div class="tg-dos-feedback">
                                                 <i class="bi bi-chat-left-text-fill me-1"></i> <?= Html::encode($mDosFeedback) ?>
                                             </div>
                                         <?php else: ?>
-                                            <span class="text-muted font-monospace text-xs opacity-50"></span>
+                                            <span class="text-muted small opacity-50">&mdash;</span>
                                         <?php endif; ?>
                                     </td>
                                 <?php endif; ?>
@@ -235,12 +244,12 @@ function columnStatusMeta(string $status): array {
                     </tbody>
                 </table>
             </div>
+        </div>
 
-           
-        <?= Html::endForm() ?>
+    <?= Html::endForm() ?>
     <?php else: ?>
-        <div class="alert alert-warning border-0 p-4 shadow-sm text-center rounded-3">
-            <i class="bi bi-exclamation-trianglefs-3 d-block mb-2"></i>
+        <div class="tg-empty-alert p-4 text-center rounded-3">
+            <i class="bi bi-exclamation-triangle-fill d-block mb-2"></i>
             <strong>No active assignments found!</strong> You are not currently assigned to teach any subjects for the chosen filter configuration.
         </div>
     <?php endif; ?>
@@ -353,39 +362,286 @@ document.addEventListener("DOMContentLoaded", function() {
 });
 </script>
 
-    <style>
-.bg-success-subtle { background-color: #d1e7dd !important; color: #0f5132 !important; }
-.bg-warning-subtle { background-color: #fff3cd !important; color: #664d03 !important; }
-.bg-danger-subtle { background-color: #f8d7da !important; color: #842029 !important; }
-.bg-info-subtle { background-color: #cff4fc !important; color: #055160 !important; }
-.bg-secondary-subtle { background-color: #e2e3e5 !important; color: #41464b !important; }
+<style>
+    :root {
+        --kora-blue-900: #0b2a52;
+        --kora-blue-800: #0f3a70;
+        --kora-blue-700: #14488a;
+        --kora-blue-accent: #3b82f6;
+        --kora-blue-soft: rgba(59, 130, 246, 0.1);
+        --kora-ink: #1e2a3a;
+        --kora-muted: #64748b;
+        --kora-border: #e7ecf3;
+    }
 
-/* Mark cell status paint — matches the key */
-.cell-sealed   { background-color: #4cc58e !important; }   /* light green */
-.cell-pending  { background-color: #e9ecef !important; }   /* light grey */
-.cell-rejected { background-color: #f8d7da !important; }   /* light red */
+    .site-teacher-grading {
+        background: #f4f7fb;
+        min-height: 100vh;
+    }
 
-.legend-swatch {
-    display: inline-block;
-    width: 14px;
-    height: 14px;
-    border-radius: 3px;
-    border: 1px solid rgba(0,0,0,0.15);
-}
-.legend-swatch.cell-sealed   { background-color: #e6f6ec; }
-.legend-swatch.cell-pending  { background-color: #eceff1; }
-.legend-swatch.cell-rejected { background-color: #fdecea; }
-.legend-swatch.cell-blank    { background-color: #ffffff; }
+    /* ===== Header ===== */
+    .tg-page-title {
+        color: var(--kora-ink);
+        font-weight: 700;
+        font-size: 1.4rem;
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+    }
 
-#teacherGradingTable td .grading-input-score {
-    background-color: transparent !important;
-}
+    .tg-page-title i {
+        color: var(--kora-blue-accent);
+    }
 
-.form-check-input {
-    width: 1.1em;
-}
-.form-check-input:checked {
-    background-color: #198754 !important;
-    border-color: #198754 !important;
-}
+    .tg-page-subtitle {
+        color: var(--kora-muted);
+        font-size: 0.88rem;
+    }
+
+    /* ===== Cards ===== */
+    .tg-card, .tg-toolbar-card, .tg-table-card {
+        background: #fff;
+        border: 1px solid var(--kora-border) !important;
+        box-shadow: 0 2px 10px rgba(15, 42, 82, 0.05);
+    }
+
+    .tg-label {
+        color: var(--kora-muted);
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+    }
+
+    .tg-input {
+        border: 1px solid var(--kora-border);
+        border-radius: 8px;
+    }
+
+    .tg-input:focus {
+        border-color: var(--kora-blue-accent);
+        box-shadow: 0 0 0 0.2rem var(--kora-blue-soft);
+    }
+
+    .tg-btn-filter {
+        background: var(--kora-blue-800);
+        color: #fff;
+        border-radius: 8px;
+        border: none;
+    }
+
+    .tg-btn-filter:hover {
+        background: var(--kora-blue-700);
+        color: #fff;
+    }
+
+    /* ===== Class badge + search ===== */
+    .tg-class-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: var(--kora-blue-soft);
+        color: var(--kora-blue-800);
+        font-weight: 700;
+        font-size: 0.85rem;
+        padding: 0.5rem 1rem;
+        border-radius: 50px;
+    }
+
+    .tg-class-badge-divider {
+        opacity: 0.5;
+    }
+
+    .tg-search-wrap {
+        position: relative;
+        min-width: 260px;
+    }
+
+    .tg-search-wrap i {
+        position: absolute;
+        left: 0.75rem;
+        top: 50%;
+        transform: translateY(-50%);
+        color: var(--kora-muted);
+        font-size: 0.85rem;
+    }
+
+    .tg-search-wrap .form-control {
+        padding-left: 2rem;
+    }
+
+    /* ===== Toolbar ===== */
+    .tg-toolbar-card {
+        background: linear-gradient(135deg, var(--kora-blue-900), var(--kora-blue-800));
+        border: none !important;
+    }
+
+    .tg-toolbar-hint {
+        color: rgba(255, 255, 255, 0.85);
+        font-size: 0.85rem;
+        font-weight: 600;
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .tg-toolbar-hint i {
+        color: #7dd3fc;
+    }
+
+    .tg-btn {
+        border-radius: 50px;
+        font-weight: 700;
+        font-size: 0.8rem;
+        padding: 0.5rem 1rem;
+        border: 1px solid transparent;
+    }
+
+    .tg-btn-primary {
+        background: var(--kora-blue-accent);
+        color: #fff;
+    }
+
+    .tg-btn-primary:hover {
+        background: #2563eb;
+        color: #fff;
+    }
+
+    .tg-btn-primary-outline {
+        background: rgba(255, 255, 255, 0.08);
+        color: #fff;
+        border-color: rgba(255, 255, 255, 0.35);
+    }
+
+    .tg-btn-primary-outline:hover {
+        background: #fff;
+        color: var(--kora-blue-800);
+    }
+
+    /* ===== Legend ===== */
+    .tg-legend-label {
+        color: var(--kora-muted);
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        font-size: 0.7rem;
+    }
+
+    .tg-legend-item {
+        color: var(--kora-ink);
+        font-size: 0.8rem;
+    }
+
+    .legend-swatch {
+        display: inline-block;
+        width: 14px;
+        height: 14px;
+        border-radius: 4px;
+        border: 1px solid rgba(0,0,0,0.1);
+    }
+    .legend-swatch.cell-sealed   { background-color: #e3f4ea; }
+    .legend-swatch.cell-pending  { background-color: #eaf1fb; }
+    .legend-swatch.cell-rejected { background-color: #fbe6e8; }
+    .legend-swatch.cell-blank    { background-color: #ffffff; }
+
+    /* ===== Table ===== */
+    #teacherGradingTable thead th {
+        background: var(--kora-blue-900);
+        color: rgba(255, 255, 255, 0.9);
+        font-size: 0.68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        border: none;
+        padding: 0.8rem 0.6rem;
+        position: sticky;
+        top: 0;
+        z-index: 2;
+    }
+
+    #teacherGradingTable tbody td {
+        padding: 0.6rem;
+        border-bottom: 1px solid var(--kora-border);
+        font-size: 0.85rem;
+        vertical-align: middle;
+    }
+
+    #teacherGradingTable tbody tr:nth-child(even) {
+        background: #fafbfd;
+    }
+
+    #teacherGradingTable tbody tr:hover {
+        background: var(--kora-blue-soft);
+    }
+
+    #teacherGradingTable tbody tr:last-child td {
+        border-bottom: none;
+    }
+
+    .tg-row-num {
+        color: var(--kora-muted);
+        font-size: 0.78rem;
+    }
+
+    .tg-student-name {
+        color: var(--kora-ink);
+    }
+
+    .tg-locked-icon {
+        color: #22c55e;
+    }
+
+    .tg-uneb-badge {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 2.4rem;
+        padding: 0.3rem 0.5rem;
+        border-radius: 6px;
+        background: var(--kora-blue-soft);
+        color: var(--kora-blue-800);
+        font-family: 'Courier New', monospace;
+        font-weight: 800;
+        font-size: 0.85rem;
+    }
+
+    .tg-dos-feedback {
+        background: #fbe6e8;
+        color: #842029;
+        border-radius: 6px;
+        padding: 0.4rem 0.6rem;
+        font-size: 0.78rem;
+        font-weight: 600;
+    }
+
+    #teacherGradingTable td .grading-input-score {
+        background-color: transparent !important;
+        border: 1px solid var(--kora-border);
+        border-radius: 6px;
+    }
+
+    #teacherGradingTable td .grading-input-score:focus {
+        border-color: var(--kora-blue-accent);
+        box-shadow: 0 0 0 0.15rem var(--kora-blue-soft);
+    }
+
+    .form-check-input {
+        width: 1.1em;
+        cursor: pointer;
+    }
+    .form-check-input:checked {
+        background-color: var(--kora-blue-accent) !important;
+        border-color: var(--kora-blue-accent) !important;
+    }
+
+    /* ===== Empty state ===== */
+    .tg-empty-alert {
+        background: #fff8e6;
+        border: 1px solid #f5d78e;
+        color: #8a6400;
+        box-shadow: 0 2px 10px rgba(15, 42, 82, 0.05);
+    }
+
+    .tg-empty-alert i {
+        font-size: 1.8rem;
+        color: #d99406;
+    }
 </style>

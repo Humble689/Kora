@@ -78,7 +78,7 @@ $this->title = 'Report Cards Hub';
                             $hasDebt = (float)$st->tuition_balance > 0;
                         ?>
                             <tr>
-                                <td class="ps-4 fw-bold text-dark"><?= Html::encode($st->name) ?></td>
+                                <td class="ps-4 fw-bold text-dark"><?= Html::encode(ucfirst($st->name)) ?></td>
                                 <!--  FIX: Cleared broken double quote HTML attributes markup on row columns -->
                                 <td class="text-secondary fw-semibold font-monospace"><?= Html::encode($st->payment_code) ?></td>
                                 <td class="fw-bold <?= $hasDebt ? 'text-danger' : 'text-success' ?> font-monospace">UGX <?= number_format((float)$st->tuition_balance, 0) ?></td>

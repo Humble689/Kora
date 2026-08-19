@@ -8,7 +8,9 @@ use Yii;
 use yii\helpers\Html;
 
 use app\models\ContactForm;
+use app\models\ExpenseClaims;
 use app\models\LoginForm;
+use app\models\PosDevices;
 use app\models\Schools;
 use app\models\SignupForm; 
 use app\models\StudentLookup;
@@ -301,54 +303,154 @@ class SiteController extends Controller
 
 
 
-    public function actionBursar()
-    {
-        if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
-            return $this->redirect(['site/login']);
-        }
+   public function actionBursar()
+{
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+        return $this->redirect(['site/login']);
+    }
 
-        $userSchoolId = Yii::$app->user->identity->school_id;
-        $request = Yii::$app->request;
+    $userSchoolId = Yii::$app->user->identity->school_id;
+    $request = Yii::$app->request;
 
-        $stats = [
-            'total_tuition'     => (float) Transactions::find()->joinWith('student')->where(['transaction_type' => 'TUITION', 'students.school_id' => $userSchoolId])->sum('amount'),
-            'total_outstanding' => (float) Students::find()->where(['school_id' => $userSchoolId])->sum('tuition_balance'),
-            'total_swallet'     => (float) Students::find()->where(['school_id' => $userSchoolId])->sum('swallet_balance'),
-        ];
+    // --- Base stats (existing) ---
+    $stats = [
+        'total_tuition'     => (float) Transactions::find()->joinWith('student')->where(['transaction_type' => 'TUITION', 'students.school_id' => $userSchoolId])->sum('amount'),
+        'total_outstanding' => (float) Students::find()->where(['school_id' => $userSchoolId])->sum('tuition_balance'),
+        'total_swallet'     => (float) Students::find()->where(['school_id' => $userSchoolId])->sum('swallet_balance'),
+    ];
+// --- Settlement Reconciliation, broken down by channel ---
+$reconciliationByChannel = Transactions::find()
+    ->joinWith('student')
+    ->select([
+        'transactions.payment_channel',
+        'network_cleared' => 'SUM(CASE WHEN transactions.status = \'SUCCESS\' THEN transactions.amount ELSE 0 END)',
+        'bank_settled'    => 'SUM(CASE WHEN transactions.bank_settled = true THEN transactions.amount ELSE 0 END)',
+    ])
+    ->where(['students.school_id' => $userSchoolId, 'transactions.transaction_type' => 'TUITION'])
+    ->groupBy(['transactions.payment_channel'])
+    ->asArray()
+    ->all();
 
-        $txSearchKeyword = trim($request->get('tx_q', ''));
+// Only channels with a real network→bank settlement gap. Cash and internal
+// wallet transfers settle differently and are tracked separately.
+$settlementRelevantChannels = ['MTN_MOMO', 'AIRTEL_MONEY', 'ONLINE_PORTAL'];
 
-        $txQuery = Transactions::find()->joinWith('student')->where(['students.school_id' => $userSchoolId]);
-        
-        if (!empty($txSearchKeyword)) {
-            $txQuery->andWhere([
-                'or',
-                ['ilike', 'transactions.external_reference', $txSearchKeyword],
-                ['ilike', 'transactions.transaction_type', $txSearchKeyword],
-                ['ilike', 'transactions.payment_channel', $txSearchKeyword],
-                ['ilike', 'students.name', $txSearchKeyword]
-            ]);
-        }
-        
-        $txCountQuery = clone $txQuery;
-        $txPages = new \yii\data\Pagination([
-            'totalCount' => (int) $txCountQuery->count(),
-            'pageSize' => 20,
-            'pageParam' => 'p_tx',
-        ]);
-        
-        $recentTransactions = $txQuery->offset($txPages->offset)
-            ->limit($txPages->limit)
-            ->orderBy(['transactions.created_at' => SORT_DESC])
-            ->all();
+$stats['network_cleared'] = 0;
+$stats['bank_settled'] = 0;
+foreach ($reconciliationByChannel as $row) {
+    if (in_array($row['payment_channel'], $settlementRelevantChannels)) {
+        $stats['network_cleared'] += (float) $row['network_cleared'];
+        $stats['bank_settled'] += (float) $row['bank_settled'];
+    }
+}
+$stats['settlement_gap'] = $stats['network_cleared'] - $stats['bank_settled'];
 
-        return $this->render('bursar', [
-            'stats' => $stats,
-            'recentTransactions' => $recentTransactions,
-            'txPages' => $txPages,
-            'txSearchKeyword' => $txSearchKeyword,
+    // (total_swallet above already covers this, but expose a distinct "float liability" label + last 7-day movement)
+    $stats['swallet_float'] = $stats['total_swallet'];
+    $stats['swallet_7d_topups'] = (float) Transactions::find()
+        ->joinWith('student')
+        ->where(['students.school_id' => $userSchoolId, 'transaction_type' => 'POCKET_MONEY'])
+        ->andWhere(['>=', 'transactions.created_at', date('Y-m-d H:i:s', strtotime('-7 days'))])
+        ->sum('amount');
+
+    // --- 3. Channel Utilization Breakdown ---
+    $channelBreakdown = Transactions::find()
+        ->joinWith('student')
+        ->select(['transactions.payment_channel', 'total' => 'SUM(transactions.amount)'])
+        ->where(['students.school_id' => $userSchoolId])
+        ->groupBy(['transactions.payment_channel'])
+        ->asArray()
+        ->all();
+
+    $defaulterHeatmap = Students::find()
+    ->select(['class_level', 'total_outstanding' => 'SUM(tuition_balance)', 'defaulter_count' => 'COUNT(CASE WHEN tuition_balance > 0 THEN 1 END)'])
+    ->where(['school_id' => $userSchoolId])
+    ->groupBy(['class_level'])
+    ->orderBy(['total_outstanding' => SORT_DESC])
+    ->asArray()
+    ->all();
+
+    // --- 5. Collection Velocity Graph (this term vs last term, daily cumulative) ---
+    $currentTermId = Yii::$app->user->identity->school->current_term_id ?? null;
+    $collectionVelocity = $this->buildCollectionVelocitySeries($userSchoolId, $currentTermId);
+
+    // --- Transactions table (existing, unchanged) ---
+    $txSearchKeyword = trim($request->get('tx_q', ''));
+    $txQuery = Transactions::find()->joinWith('student')->where(['students.school_id' => $userSchoolId]);
+
+    if (!empty($txSearchKeyword)) {
+        $txQuery->andWhere([
+            'or',
+            ['ilike', 'transactions.external_reference', $txSearchKeyword],
+            ['ilike', 'transactions.transaction_type', $txSearchKeyword],
+            ['ilike', 'transactions.payment_channel', $txSearchKeyword],
+            ['ilike', 'students.name', $txSearchKeyword]
         ]);
     }
+
+    $txCountQuery = clone $txQuery;
+    $txPages = new \yii\data\Pagination([
+        'totalCount' => (int) $txCountQuery->count(),
+        'pageSize' => 20,
+        'pageParam' => 'p_tx',
+    ]);
+
+    $recentTransactions = $txQuery->offset($txPages->offset)
+        ->limit($txPages->limit)
+        ->orderBy(['transactions.created_at' => SORT_DESC])
+        ->all();
+
+  return $this->render('bursar', [
+    'stats' => $stats,
+    'channelBreakdown' => $channelBreakdown,
+    'reconciliationByChannel' => $reconciliationByChannel,
+    'settlementRelevantChannels' => $settlementRelevantChannels,
+    'defaulterHeatmap' => $defaulterHeatmap,
+    'collectionVelocity' => $collectionVelocity,
+    'recentTransactions' => $recentTransactions,
+    'txPages' => $txPages,
+    'txSearchKeyword' => $txSearchKeyword,
+]);
+}
+
+/**
+ * Builds cumulative daily collection totals for the last 90 days vs the
+ * previous 90 days, indexed by day-number so both lines overlay on the chart.
+ * No dependency on a terms/academic-terms table.
+ */
+private function buildCollectionVelocitySeries($schoolId, $currentTermId = null)
+{
+    $periodDays = 90;
+
+    $currentStart = date('Y-m-d', strtotime("-{$periodDays} days"));
+    $currentEnd   = date('Y-m-d 23:59:59');
+
+    $previousStart = date('Y-m-d', strtotime("-" . ($periodDays * 2) . " days"));
+    $previousEnd   = date('Y-m-d 23:59:59', strtotime("-{$periodDays} days"));
+
+    $buildSeries = function ($start, $end) use ($schoolId) {
+        $rows = Transactions::find()
+            ->joinWith('student')
+            ->select(['day' => 'DATE(transactions.created_at)', 'daily_total' => 'SUM(transactions.amount)'])
+            ->where(['students.school_id' => $schoolId, 'transaction_type' => 'TUITION'])
+            ->andWhere(['between', 'transactions.created_at', $start, $end])
+            ->groupBy(['day'])
+            ->orderBy(['day' => SORT_ASC])
+            ->asArray()->all();
+
+        $cumulative = 0;
+        return array_map(function ($r) use (&$cumulative) {
+            $cumulative += (float) $r['daily_total'];
+            return ['day' => $r['day'], 'cumulative' => $cumulative];
+        }, $rows);
+    };
+
+    return [
+        'current' => $buildSeries($currentStart, $currentEnd),
+        'previous' => $buildSeries($previousStart, $previousEnd),
+    ];
+
+}
 
  public function actionStudentsDirectory()
 {
@@ -1542,34 +1644,110 @@ public function actionDosReview()
     }
 
 
-   
-    public function actionViewReportCard($id, $term = 'TERM_1')
-    {
-        if (Yii::$app->user->isGuest) {
-            return $this->redirect(['site/login']);
-        }
 
-        $schoolId = Yii::$app->user->identity->school_id;
-        $academicYear = (int)date('Y');
+ 
 
-        $student = Students::findOne(['id' => $id, 'school_id' => $schoolId]);
-        if (!$student) {
-            throw new \yii\web\NotFoundHttpException("Target student record profile file not found.");
-        }
-
-        //  Fetch all sealed or pending marks for this child matching selected parameters
-        $gradesList = Yii::$app->db->createCommand(
-            'SELECT * FROM academic_marks 
-             WHERE student_id = :sid AND term = :trm AND academic_year = :yr'
-        )->bindValues([':sid' => $id, ':trm' => $term, ':yr' => $academicYear])->queryAll();
-
-        return $this->render('view_report_card', [
-            'student' => $student,
-            'gradesList' => $gradesList,
-            'term' => $term,
-            'year' => $academicYear
-        ]);
+/**
+ * Replace your existing actionViewReportCard with this version, and add
+ * the private computePrimaryClassRanking() method below it to the same
+ * SiteController class.
+ */
+public function actionViewReportCard($id, $term = 'TERM_1')
+{
+    if (Yii::$app->user->isGuest) {
+        return $this->redirect(['site/login']);
     }
+
+    $schoolId = Yii::$app->user->identity->school_id;
+    $academicYear = (int)date('Y');
+
+    $student = Students::findOne(['id' => $id, 'school_id' => $schoolId]);
+    if (!$student) {
+        throw new \yii\web\NotFoundHttpException("Target student record profile file not found.");
+    }
+
+    //  Fetch all sealed or pending marks for this child matching selected parameters
+    $gradesList = Yii::$app->db->createCommand(
+        'SELECT * FROM academic_marks 
+         WHERE student_id = :sid AND term = :trm AND academic_year = :yr'
+    )->bindValues([':sid' => $id, ':trm' => $term, ':yr' => $academicYear])->queryAll();
+
+    // Class position only applies to Primary — everything else keeps the
+    // aggregate/average/points systems from the view, no ranking needed.
+    $classPosition = null;
+    $classSize = null;
+    if (strpos($student->class_level, 'Primary') !== false) {
+        [$classPosition, $classSize] = $this->computePrimaryClassRanking(
+            $schoolId, $student->class_level, $term, $academicYear, (int)$student->id
+        );
+    }
+
+    return $this->render('view_report_card', [
+        'student' => $student,
+        'gradesList' => $gradesList,
+        'term' => $term,
+        'year' => $academicYear,
+        'classPosition' => $classPosition,
+        'classSize' => $classSize,
+    ]);
+}
+
+/**
+ * Ranks a Primary student against their classmates by total marks across
+ * the 4 core PLE subjects, for the given class/term/year.
+ *
+ * ADJUST: $primaryCoreSubjects to match your actual subject_name values.
+ */
+private function computePrimaryClassRanking(int $schoolId, string $classLevel, string $term, int $academicYear, int $studentId): array
+{
+    // ADJUST to your actual subject_name values for the 4 PLE core subjects
+    $primaryCoreSubjects = ['English', 'Mathematics', 'Science', 'Social Studies'];
+
+    // Named placeholders (not ?) — Yii's bindValues() expects either named
+    // params or 1-indexed positional keys; array_merge() here would produce
+    // 0-indexed keys, which PDO rejects (hence the crash).
+    $subjectParams = [];
+    $subjectPlaceholders = [];
+    foreach ($primaryCoreSubjects as $i => $subjectName) {
+        $key = ':subj' . $i;
+        $subjectParams[$key] = $subjectName;
+        $subjectPlaceholders[] = $key;
+    }
+    $placeholders = implode(',', $subjectPlaceholders);
+
+    $rows = Yii::$app->db->createCommand(
+        "SELECT m.student_id,
+                SUM(
+                    CASE
+                        WHEN m.eot_mark > 0 THEN m.eot_mark
+                        WHEN m.mot_mark > 0 THEN m.mot_mark
+                        ELSE m.bot_mark
+                    END
+                ) AS total_marks
+         FROM academic_marks m
+         WHERE m.school_id = :sid AND m.class_level = :cls AND m.term = :trm AND m.academic_year = :yr
+           AND m.subject_name IN ($placeholders)
+         GROUP BY m.student_id"
+    )->bindValues(array_merge(
+        [':sid' => $schoolId, ':cls' => $classLevel, ':trm' => $term, ':yr' => $academicYear],
+        $subjectParams
+    ))->queryAll();
+
+    // Rank by total marks, descending — highest score is position 1.
+    usort($rows, fn($a, $b) => $b['total_marks'] <=> $a['total_marks']);
+
+    $classSize = count($rows);
+    $position = null;
+
+    foreach ($rows as $i => $row) {
+        if ((int)$row['student_id'] === $studentId) {
+            $position = $i + 1;
+            break;
+        }
+    }
+
+    return [$position, $classSize];
+}
 
       
     public function actionRejectMarks()
@@ -1792,48 +1970,117 @@ public function actionBulkModerateMarks()
     return $this->redirect(['site/dos-review', 'class_level' => $classLevel, 'term' => $term]);
 }
 
-    /**
-     * Action: Compiles all cleared student reports in a stream for instant batch printing
-     */
-    public function actionBatchPrintReports($class_level, $term = 'TERM_1')
-    {
-        if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['DOS', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
-            return $this->redirect(['site/login']);
-        }
 
-        $schoolId = Yii::$app->user->identity->school_id;
-        $academicYear = (int)date('Y');
-
-        // 🔥 PERFORMANCE LIMIT PATTERN: Isolates strictly ACTIVE, financially cleared students 
-        // to prevent defaulting records from bloating memory space blocks
-        $students = \app\models\Students::find()
-            ->where(['school_id' => $schoolId, 'class_level' => $class_level, 'status' => 'ACTIVE'])
-            ->andWhere(['<=', 'tuition_balance', 0])
-            ->orderBy(['name' => SORT_ASC])
-            ->all();
-
-        if (empty($students)) {
-            Yii::$app->session->setFlash('error', 'Batch Operation Cancelled: No fully paid, cleared student records found in this class.');
-            return $this->redirect(['site/print-reports', 'class_level' => $class_level]);
-        }
-
-        $batchGrades = [];
-        foreach ($students as $st) {
-            $batchGrades[$st->id] = Yii::$app->db->createCommand(
-                'SELECT * FROM academic_marks WHERE student_id = :sid AND term = :trm AND academic_year = :yr'
-            )->bindValues([':sid' => $st->id, ':trm' => $term, ':yr' => $academicYear])->queryAll();
-        }
-
-        return $this->renderPartial('batch_print_reports', [
-            'students' => $students,
-            'batchGrades' => $batchGrades,
-            'term' => $term,
-            'year' => $academicYear,
-            'classLevel' => $class_level
-        ]);
+public function actionBatchPrintReports($class_level, $term = 'TERM_1')
+{
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['DOS', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
+        return $this->redirect(['site/login']);
     }
 
-  
+    $schoolId = Yii::$app->user->identity->school_id;
+    $academicYear = (int)date('Y');
+
+    // to prevent defaulting records from bloating memory space blocks
+    $students = \app\models\Students::find()
+        ->where(['school_id' => $schoolId, 'class_level' => $class_level, 'status' => 'ACTIVE'])
+        ->andWhere(['<=', 'tuition_balance', 0])
+        ->orderBy(['name' => SORT_ASC])
+        ->all();
+
+    if (empty($students)) {
+        Yii::$app->session->setFlash('error', 'Batch Operation Cancelled: No fully paid, cleared student records found in this class.');
+        return $this->redirect(['site/print-reports', 'class_level' => $class_level]);
+    }
+
+    $batchGrades = [];
+    foreach ($students as $st) {
+        $batchGrades[$st->id] = Yii::$app->db->createCommand(
+            'SELECT * FROM academic_marks WHERE student_id = :sid AND term = :trm AND academic_year = :yr'
+        )->bindValues([':sid' => $st->id, ':trm' => $term, ':yr' => $academicYear])->queryAll();
+    }
+
+    // Class position (Primary only) — one query ranks the WHOLE class
+    // (regardless of tuition clearance, matching real academic standing),
+    // then each printed card just looks up its own student_id in the map.
+    $classPositionMap = [];
+    $classSize = null;
+    if (strpos($class_level, 'Primary') !== false) {
+        [$classPositionMap, $classSize] = $this->computePrimaryClassRankingMap(
+            $schoolId, $class_level, $term, $academicYear
+        );
+    }
+
+    return $this->renderPartial('batch_print_reports', [
+        'students' => $students,
+        'batchGrades' => $batchGrades,
+        'term' => $term,
+        'year' => $academicYear,
+        'classLevel' => $class_level,
+        'classPositionMap' => $classPositionMap,
+        'classSize' => $classSize,
+    ]);
+}
+
+/**
+ * Ranks every Primary student in a class (not just cleared/printed ones)
+ * by total marks across the 4 core PLE subjects. Returns [positionMap,
+ * classSize] where positionMap is student_id => rank (1 = highest).
+ *
+ * This replaces the single-student computePrimaryClassRanking() you
+ * already have from actionViewReportCard — swap that method's body to
+ * just call this one and pluck out the single position, so both actions
+ * share one ranking query instead of drifting apart:
+ *
+ *   private function computePrimaryClassRanking(int $schoolId, string $classLevel, string $term, int $academicYear, int $studentId): array
+ *   {
+ *       [$positionMap, $classSize] = $this->computePrimaryClassRankingMap($schoolId, $classLevel, $term, $academicYear);
+ *       return [$positionMap[$studentId] ?? null, $classSize];
+ *   }
+ *
+ * ADJUST: $primaryCoreSubjects to match your actual subject_name values
+ * (same list used in computePrimaryClassRanking already).
+ */
+private function computePrimaryClassRankingMap(int $schoolId, string $classLevel, string $term, int $academicYear): array
+{
+    $primaryCoreSubjects = ['English', 'Mathematics', 'Science', 'Social Studies']; // ADJUST
+
+    $subjectParams = [];
+    $subjectPlaceholders = [];
+    foreach ($primaryCoreSubjects as $i => $subjectName) {
+        $key = ':subj' . $i;
+        $subjectParams[$key] = $subjectName;
+        $subjectPlaceholders[] = $key;
+    }
+    $placeholders = implode(',', $subjectPlaceholders);
+
+    $rows = Yii::$app->db->createCommand(
+        "SELECT m.student_id,
+                SUM(
+                    CASE
+                        WHEN m.eot_mark > 0 THEN m.eot_mark
+                        WHEN m.mot_mark > 0 THEN m.mot_mark
+                        ELSE m.bot_mark
+                    END
+                ) AS total_marks
+         FROM academic_marks m
+         WHERE m.school_id = :sid AND m.class_level = :cls AND m.term = :trm AND m.academic_year = :yr
+           AND m.subject_name IN ($placeholders)
+         GROUP BY m.student_id"
+    )->bindValues(array_merge(
+        [':sid' => $schoolId, ':cls' => $classLevel, ':trm' => $term, ':yr' => $academicYear],
+        $subjectParams
+    ))->queryAll();
+
+    usort($rows, fn($a, $b) => $b['total_marks'] <=> $a['total_marks']);
+
+    $classSize = count($rows);
+    $positionMap = [];
+    foreach ($rows as $i => $row) {
+        $positionMap[(int)$row['student_id']] = $i + 1;
+    }
+
+    return [$positionMap, $classSize];
+}
     public function actionExportClassMarks($class_level, $term = 'TERM_1')
     {
         if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'DOS', 'SCHOOL_ADMIN'])) {
@@ -1951,4 +2198,292 @@ public function actionSettings()
         'assignments' => $assignments,
     ]);
 }
+
+public function actionWalletAdjust()
+{
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+        throw new \yii\web\ForbiddenHttpException();
+    }
+
+    $studentId = Yii::$app->request->post('student_id');
+
+    if (empty($studentId)) {
+        Yii::$app->session->setFlash('error', 'No student selected — please search and pick a student first.');
+        return $this->redirect(['site/bursar']);
+    }
+
+    $student = Students::findOne(['id' => $studentId, 'school_id' => Yii::$app->user->identity->school_id]);
+    if (!$student) {
+        Yii::$app->session->setFlash('error', 'Student not found.');
+        return $this->redirect(['site/bursar']);
+    }
+
+    $action = Yii::$app->request->post('wallet_action');
+    $amount = (float) Yii::$app->request->post('amount', 0);
+
+    $transaction = Yii::$app->db->beginTransaction();
+    try {
+        if ($action === 'TOPUP' && $amount > 0) {
+            $student->swallet_balance += $amount;
+            $student->save(false);
+
+            $tx = new Transactions();
+            $tx->student_id = $student->id;
+            $tx->transaction_type = 'POCKET_MONEY';
+            $tx->payment_channel = 'OVER_THE_COUNTER';
+            $tx->amount = $amount;
+            $tx->external_reference = 'MANUAL-' . strtoupper(uniqid());
+            $tx->created_by = Yii::$app->user->id;
+            $tx->save(false);
+        } elseif ($action === 'FREEZE') {
+            $student->wallet_frozen = true;
+            $student->save(false);
+        } elseif ($action === 'UNFREEZE') {
+            $student->wallet_frozen = false;
+            $student->save(false);
+        }
+        $transaction->commit();
+        Yii::$app->session->setFlash('success', 'Wallet updated for ' . Html::encode($student->name) . '.');
+    } catch (\Throwable $e) {
+        $transaction->rollBack();
+        Yii::$app->session->setFlash('error', 'Wallet update failed: ' . $e->getMessage());
+    }
+
+    return $this->redirect(['site/bursar']);
+}
+
+
+public function actionVoidTransaction($id)
+{
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+        throw new \yii\web\ForbiddenHttpException();
+    }
+
+    $tx = Transactions::findOne($id);
+    if (!$tx || $tx->student->school_id != Yii::$app->user->identity->school_id) {
+        throw new \yii\web\NotFoundHttpException('Transaction not found.');
+    }
+
+    if (Yii::$app->request->isPost) {
+        $reason = trim(Yii::$app->request->post('void_reason', ''));
+        if (empty($reason)) {
+            Yii::$app->session->setFlash('error', 'A reason is required to void a transaction.');
+            return $this->redirect(['site/bursar']);
+        }
+
+        $dbTransaction = Yii::$app->db->beginTransaction();
+        try {
+            // Reverse the balance effect
+            if ($tx->transaction_type === 'TUITION') {
+                $tx->student->tuition_balance += $tx->amount;
+            } elseif ($tx->transaction_type === 'POCKET_MONEY') {
+                $tx->student->swallet_balance -= $tx->amount;
+            }
+            $tx->student->save(false);
+
+            $tx->status = 'VOIDED';
+            $tx->void_reason = $reason;
+            $tx->voided_by = Yii::$app->user->id;
+            $tx->voided_at = date('Y-m-d H:i:s');
+            $tx->save(false);
+
+            $dbTransaction->commit();
+            Yii::$app->session->setFlash('success', 'Transaction voided and reversed.');
+        } catch (\Throwable $e) {
+            $dbTransaction->rollBack();
+            Yii::$app->session->setFlash('error', 'Void failed: ' . $e->getMessage());
+        }
+    }
+
+    return $this->redirect(['site/bursar']);
+}
+
+public function actionBatchInvoice()
+{
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+        throw new \yii\web\ForbiddenHttpException();
+    }
+
+    $schoolId = Yii::$app->user->identity->school_id;
+
+    if (Yii::$app->request->isPost) {
+        $classLevel = trim(Yii::$app->request->post('class_level', ''));
+        $baseFee = (float) Yii::$app->request->post('base_fee', 0);
+        $applySiblingWaiver = (bool) Yii::$app->request->post('apply_sibling_waiver');
+        $applyStaffWaiver = (bool) Yii::$app->request->post('apply_staff_waiver');
+
+        if (empty($classLevel) || $baseFee <= 0) {
+            Yii::$app->session->setFlash('error', 'Select a class and a valid base fee before generating invoices.');
+            return $this->redirect(['site/bursar']);
+        }
+
+        $students = Students::find()->where(['school_id' => $schoolId, 'class_level' => $classLevel])->all();
+
+        if (empty($students)) {
+            Yii::$app->session->setFlash('error', 'No students found in that class.');
+            return $this->redirect(['site/bursar']);
+        }
+
+        $dbTransaction = Yii::$app->db->beginTransaction();
+        try {
+            foreach ($students as $student) {
+                $fee = $baseFee;
+                if ($applyStaffWaiver && $student->is_staff_child) {
+                    $fee *= (1 - ($student->staff_waiver_pct ?: 0));
+                }
+                if ($applySiblingWaiver && $student->sibling_group_id && $student->sibling_rank > 1) {
+                    $fee *= (1 - ($student->sibling_waiver_pct ?: 0));
+                }
+                $student->tuition_balance += $fee;
+                $student->save(false);
+            }
+            $dbTransaction->commit();
+            Yii::$app->session->setFlash('success', count($students) . ' students in ' . Html::encode($classLevel) . ' invoiced successfully.');
+        } catch (\Throwable $e) {
+            $dbTransaction->rollBack();
+            Yii::$app->session->setFlash('error', 'Batch invoicing failed: ' . $e->getMessage());
+        }
+    }
+
+    return $this->redirect(['site/bursar']);
+}
+
+
+public function actionForcePosSync()
+{
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+        throw new \yii\web\ForbiddenHttpException();
+    }
+
+    $schoolId = Yii::$app->user->identity->school_id;
+
+    // Replace with actual device-messaging integration (MQTT/webhook/push).
+    $devices = PosDevices::find()->where(['school_id' => $schoolId, 'status' => 'ONLINE'])->all();
+    $synced = 0;
+    foreach ($devices as $device) {
+        try {
+            Yii::$app->posGateway->sendForceSyncCommand($device->device_uid);
+            $synced++;
+        } catch (\Throwable $e) {
+            // log per-device failure, continue
+        }
+    }
+
+    Yii::$app->session->setFlash('success', "Sync command sent to {$synced} device(s).");
+    return $this->redirect(['site/bursar']);
+}
+
+
+public function actionPrintReceipt($id)
+{
+    $tx = Transactions::findOne($id);
+    if (!$tx || $tx->student->school_id != Yii::$app->user->identity->school_id) {
+        throw new \yii\web\NotFoundHttpException('Transaction not found.');
+    }
+
+    return $this->renderPartial('receipt-print', ['tx' => $tx]);
+}
+
+
+public function actionExpenseClaims()
+{
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+        throw new \yii\web\ForbiddenHttpException();
+    }
+
+    $schoolId = Yii::$app->user->identity->school_id;
+    $pendingClaims = ExpenseClaims::find()->where(['school_id' => $schoolId, 'status' => 'PENDING'])->all();
+
+    if (Yii::$app->request->isPost) {
+        $claimId = Yii::$app->request->post('claim_id');
+        $decision = Yii::$app->request->post('decision'); // 'APPROVE' | 'REJECT'
+        $claim = ExpenseClaims::findOne(['id' => $claimId, 'school_id' => $schoolId]);
+
+        if ($claim) {
+            $claim->status = $decision === 'APPROVE' ? 'APPROVED' : 'REJECTED';
+            $claim->reviewed_by = Yii::$app->user->id;
+            $claim->reviewed_at = date('Y-m-d H:i:s');
+            $claim->save(false);
+            Yii::$app->session->setFlash('success', 'Claim ' . strtolower($claim->status) . '.');
+        }
+        return $this->redirect(['site/expense-claims']);
+    }
+
+    return $this->render('expense-claims', ['pendingClaims' => $pendingClaims]);
+}
+
+
+public function actionStudentsByClass()
+{
+    Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+        throw new \yii\web\ForbiddenHttpException();
+    }
+
+    $classLevel = Yii::$app->request->get('class_level');
+    $search = trim(Yii::$app->request->get('q', ''));
+
+    if (empty($classLevel)) {
+        return [];
+    }
+
+    $query = Students::find()
+        ->where(['school_id' => Yii::$app->user->identity->school_id, 'class_level' => $classLevel]);
+
+    if (!empty($search)) {
+        $query->andWhere(['ilike', 'name', $search]);
+    }
+
+    $students = $query->orderBy(['name' => SORT_ASC])->limit(50)->all();
+
+    return array_map(function ($s) {
+        return [
+            'id' => $s->id,
+            'text' => $s->name . ' — ' . $s->payment_code . ($s->wallet_frozen ? ' (Frozen)' : ''),
+        ];
+    }, $students);
+}
+
+
+
+public function actionClassList()
+{
+    Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+        throw new \yii\web\ForbiddenHttpException();
+    }
+
+    $classes = Students::find()
+        ->select('class_level')
+        ->distinct()
+        ->where(['school_id' => Yii::$app->user->identity->school_id])
+        ->andWhere(['is not', 'class_level', null])
+        ->orderBy(['class_level' => SORT_ASC])
+        ->column();
+
+    return array_values(array_filter($classes));
+}
+
+public function actionClassStudentCount()
+{
+    Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+        throw new \yii\web\ForbiddenHttpException();
+    }
+
+    $classLevel = Yii::$app->request->get('class_level');
+    if (empty($classLevel)) {
+        return ['count' => 0];
+    }
+
+    $count = Students::find()
+        ->where(['school_id' => Yii::$app->user->identity->school_id, 'class_level' => $classLevel])
+        ->count();
+
+    return ['count' => (int) $count];
+}
+
 }

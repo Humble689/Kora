@@ -275,12 +275,13 @@ if (!in_array($currentRoute, ['site/index', 'site/login'], true)):
                 <?php endif; ?>
 
 
-                <!-- BURSAR SIDEBAR CONTROLS -->
+              <!-- BURSAR SIDEBAR CONTROLS -->
                 <?php if ($role === 'BURSAR'): ?>
                     <div class="sidebar-heading">Bursar Operations</div>
                     <a href="<?= Url::toRoute(['site/bursar']) ?>" class="sidebar-link <?= $currentRoute === 'site/bursar' ? 'active' : '' ?>"><i class="bi bi-receipt-cutoff"></i> Collections Ledger</a>
                     <a href="<?= Url::toRoute(['site/students-directory']) ?>" class="sidebar-link <?= $currentRoute === 'site/students-directory' ? 'active' : '' ?>"><i class="bi bi-people-fill"></i> Student Directory</a>
                     <a href="<?= Url::toRoute(['site/register-student']) ?>" class="sidebar-link <?= $currentRoute === 'site/register-student' ? 'active' : '' ?>"><i class="bi bi-person-plus"></i> Enroll Student</a>
+                    <a href="<?= Url::toRoute(['site/expense-claims']) ?>" class="sidebar-link <?= $currentRoute === 'site/expense-claims' ? 'active' : '' ?>"><i class="bi bi-clipboard-check-fill"></i> Expense Claims</a>
                 <?php endif; ?>
 
 

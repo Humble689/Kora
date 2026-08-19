@@ -4,10 +4,18 @@
 /** @var array $gradesList */
 /** @var string $term */
 /** @var int $year */
+/** @var int|null $classPosition   Rank within class (Primary only) — requires controller wiring, see note below */
+/** @var int|null $classSize       Number of students ranked (Primary only) — requires controller wiring */
 
 use yii\helpers\Html;
 
 $this->title = 'Academic Report ' . $student->name;
+
+// These two are optional and only meaningful for Primary. They won't exist
+// yet unless the controller action is updated to compute and pass them —
+// see computePrimaryClassRanking() note at the end of this response.
+$classPosition = $classPosition ?? null;
+$classSize = $classSize ?? null;
 
 $hasBotData = false;
 $hasMotData = false;
@@ -19,6 +27,13 @@ foreach ($gradesList as $g) {
     if ((float)$g['eot_mark'] > 0) $hasEotData = true;
 }
 
+// Only show the weight suffix ("(20)") when more than one term's marks are
+// present — a single-term sheet doesn't need the weighting spelled out.
+$activeTermCount = ($hasBotData ? 1 : 0) + ($hasMotData ? 1 : 0) + ($hasEotData ? 1 : 0);
+$botColumnLabel = $activeTermCount > 1 ? 'BOT (20)' : 'BOT';
+$motColumnLabel = $activeTermCount > 1 ? 'MOT (30)' : 'MOT';
+$eotColumnLabel = $activeTermCount > 1 ? 'EOT (50)' : 'EOT';
+
 function getUnebDetails($bot, $mot, $eot, $hasBot, $hasMot, $hasEot) {
     $totalWeight = 0;
     $earnedPoints = 0;
@@ -27,38 +42,55 @@ function getUnebDetails($bot, $mot, $eot, $hasBot, $hasMot, $hasEot) {
     if ($hasMot && $mot > 0) { $earnedPoints += ($mot * 0.3); $totalWeight += 0.3; }
     if ($hasEot && $eot > 0) { $earnedPoints += ($eot * 0.5); $totalWeight += 0.5; }
 
-    if ($totalWeight === 0) return ['G' => 'F9', 'P' => 9, 'R' => 'Fail'];
+    if ($totalWeight === 0) return ['G' => 'F9', 'P' => 9, 'R' => 'Fail', 'S' => 0.0];
 
     $finalScore = ($earnedPoints / $totalWeight);
 
-    if ($finalScore >= 80) return ['G' => 'D1', 'P' => 1, 'R' => 'Distinction 1'];
-    if ($finalScore >= 75) return ['G' => 'D2', 'P' => 2, 'R' => 'Distinction 2'];
-    if ($finalScore >= 70) return ['G' => 'C3', 'P' => 3, 'R' => 'Credit 3'];
-    if ($finalScore >= 65) return ['G' => 'C4', 'P' => 4, 'R' => 'Credit 4'];
-    if ($finalScore >= 60) return ['G' => 'C5', 'P' => 5, 'R' => 'Credit 5'];
-    if ($finalScore >= 50) return ['G' => 'C6', 'P' => 6, 'R' => 'Credit 6'];
-    if ($finalScore >= 45) return ['G' => 'P7', 'P' => 7, 'R' => 'Pass 7'];
-    if ($finalScore >= 40) return ['G' => 'P8', 'P' => 8, 'R' => 'Pass 8'];
-    return ['G' => 'F9', 'P' => 9, 'R' => 'Fail 9'];
+    if ($finalScore >= 80) return ['G' => 'D1', 'P' => 1, 'R' => 'Distinction 1', 'S' => $finalScore];
+    if ($finalScore >= 75) return ['G' => 'D2', 'P' => 2, 'R' => 'Distinction 2', 'S' => $finalScore];
+    if ($finalScore >= 70) return ['G' => 'C3', 'P' => 3, 'R' => 'Credit 3', 'S' => $finalScore];
+    if ($finalScore >= 65) return ['G' => 'C4', 'P' => 4, 'R' => 'Credit 4', 'S' => $finalScore];
+    if ($finalScore >= 60) return ['G' => 'C5', 'P' => 5, 'R' => 'Credit 5', 'S' => $finalScore];
+    if ($finalScore >= 50) return ['G' => 'C6', 'P' => 6, 'R' => 'Credit 6', 'S' => $finalScore];
+    if ($finalScore >= 45) return ['G' => 'P7', 'P' => 7, 'R' => 'Pass 7', 'S' => $finalScore];
+    if ($finalScore >= 40) return ['G' => 'P8', 'P' => 8, 'R' => 'Pass 8', 'S' => $finalScore];
+    return ['G' => 'F9', 'P' => 9, 'R' => 'Fail 9', 'S' => $finalScore];
 }
 
 $classLevel = $student->class_level;
 $summaryHeaderLabel = "Overall Performance Summary";
 $summaryValueBlock = "Incomplete Records";
 $divisionLabel = "N/A";
+$secondSummaryLabel = "Awarding Classification Award";
+$promotionNote = null;
+
+// A-Level subsidiary subjects: General Paper, ICT, and Sub-Math each earn
+// 1 point if passed at C6 (50 marks) or better — capped at 2 points total.
+$subsidiarySubjects = ['General Paper', 'ICT', 'Sub-Math'];
 
 $allPointsArray = [];
+$allRawScoresArray = [];
 $aLevelCorePoints = 0;
 $subsidiaryPoints = 0;
+$failsCoreSubject = false;
 
 foreach ($gradesList as $g) {
     $u = getUnebDetails((float)$g['bot_mark'], (float)$g['mot_mark'], (float)$g['eot_mark'], $hasBotData, $hasMotData, $hasEotData);
     $allPointsArray[] = $u['P'];
+    $allRawScoresArray[] = $u['S'];
+
+    // S3-S4: Ministry policy auto-promotes students to the next class even
+    // if they fail English or Mathematics — flagged as a note, not used to
+    // change the computed aggregate/division itself.
+    if (in_array($g['subject_name'], ['English', 'Mathematics']) && $u['G'] === 'F9') {
+        $failsCoreSubject = true;
+    }
 
     // Core parameters grouping calculation for A-level strings
     if (strpos($classLevel, 'Senior 5') !== false || strpos($classLevel, 'Senior 6') !== false) {
-        if (in_array($g['subject_name'], ['General Paper', 'Sub-Math', 'Sub-ICT'])) {
-            if ($u['P'] <= 8) $subsidiaryPoints += 1; // Passes earn max 1 point each
+        if (in_array($g['subject_name'], $subsidiarySubjects)) {
+            // Pass threshold is C6 or better (score >= 50) — max 1 point each
+            if ($u['P'] <= 6) $subsidiaryPoints += 1;
         } else {
             // Convert standard UNEB grades to A-Level Points values
             if ($u['G'] === 'D1' || $u['G'] === 'D2') {
@@ -74,22 +106,26 @@ foreach ($gradesList as $g) {
             } elseif ($u['G'] === 'P7' || $u['G'] === 'P8') {
                 $aLevelCorePoints += 1; // Grade O
             }
-
-    }}
+        }
+    }
 }
 
 // execute LEVEL SPECIFIC COMPILES
 if (!empty($allPointsArray)) {
+
     if (strpos($classLevel, 'Primary') !== false) {
+        // PLE-style: aggregate of the first 4 core subjects' grade points.
         $aggregate = array_sum(array_slice($allPointsArray, 0, 4));
         $summaryHeaderLabel = "Total Aggregates";
         $summaryValueBlock = $aggregate . " ";
 
-        if ($aggregate <= 12) $divisionLabel = "Division 1";
-        elseif ($aggregate <= 24) $divisionLabel = "Division 2";
-        elseif ($aggregate <= 28) $divisionLabel = "Division 3";
-        else $divisionLabel = "Division 4";
+        if ($aggregate <= 12) $divisionLabel = "Division I";
+        elseif ($aggregate <= 23) $divisionLabel = "Division II";
+        elseif ($aggregate <= 29) $divisionLabel = "Division III";
+        elseif ($aggregate <= 34) $divisionLabel = "Division IV";
+        else $divisionLabel = "Division U (Ungraded)";
     }
+
     elseif (strpos($classLevel, 'Senior 5') !== false || strpos($classLevel, 'Senior 6') !== false) {
         // A-Level Rule: Core Combination Points + Subsidiaries (Max 20 Points Scale)
         $totalPoints = min(20, ($aLevelCorePoints + min(2, $subsidiaryPoints)));
@@ -100,8 +136,20 @@ if (!empty($allPointsArray)) {
         elseif ($totalPoints >= 10) $divisionLabel = "Principal Class II";
         else $divisionLabel = "Class III Certificate";
     }
+
+    elseif (strpos($classLevel, 'Senior 1') !== false || strpos($classLevel, 'Senior 2') !== false) {
+        // S1-S2: overall average score across all subjects, not an aggregate.
+        $averageScore = array_sum($allRawScoresArray) / count($allRawScoresArray);
+        $avgGrade = getUnebDetails($averageScore, 0, 0, true, false, false);
+
+        $summaryHeaderLabel = "Overall Average";
+        $summaryValueBlock = number_format($averageScore, 1) . "%";
+        $secondSummaryLabel = "Average Grade";
+        $divisionLabel = $avgGrade['G'] . ' - ' . $avgGrade['R'];
+    }
+
     else {
-        // O-Level Rule: Isolate and sum the BEST 8 subjects points values dynamically
+        // S3-S4: O-Level Rule: best 8 of the 10 subjects taken, dynamically.
         sort($allPointsArray, SORT_NUMERIC);
         $best8Points = array_slice($allPointsArray, 0, 8);
         $aggregate = array_sum($best8Points);
@@ -114,11 +162,22 @@ if (!empty($allPointsArray)) {
         $summaryHeaderLabel = "O-Level UCE Best 8 Aggregate";
         $summaryValueBlock = "Agg " . $aggregate;
 
-        if ($aggregate <= 32) $divisionLabel = "Division 1";
-        elseif ($aggregate <= 45) $divisionLabel = "Division 2";
-        elseif ($aggregate <= 58) $divisionLabel = "Division 3";
-        else $divisionLabel = "Division 4";
+        if ($aggregate <= 32) $divisionLabel = "Division I";
+        elseif ($aggregate <= 45) $divisionLabel = "Division II";
+        elseif ($aggregate <= 58) $divisionLabel = "Division III";
+        elseif ($aggregate <= 72) $divisionLabel = "Division IV";
+        else $divisionLabel = "Division U (Ungraded)";
+
+        if ($failsCoreSubject) {
+            $promotionNote = "Automatically promoted to the next class per school policy, despite a failing grade in a core subject (English/Mathematics).";
+        }
     }
+}
+
+// Primary-only: total raw marks across the first 4 core subjects, out of 400.
+$totalMarksOutOf400 = null;
+if (strpos($classLevel, 'Primary') !== false && !empty($allRawScoresArray)) {
+    $totalMarksOutOf400 = array_sum(array_slice($allRawScoresArray, 0, 4));
 }
 
 $isLocked = (float)$student->tuition_balance > 0;
@@ -165,6 +224,9 @@ $isLocked = (float)$student->tuition_balance > 0;
             <?php if (!empty($student->sex)): ?>
                 <div class="col-7"><strong>Sex:</strong> <span class="text-dark"><?= strtoupper($student->sex) === 'FEMALE' ? 'Female' : 'Male' ?></span></div>
             <?php endif; ?>
+            <?php if (strpos($classLevel, 'Primary') !== false && $classPosition !== null): ?>
+                <div class="col-5 text"><strong>Class Position:</strong> <span class="fw-bold text-primary"><?= (int)$classPosition ?>/<?= (int)$classSize ?></span></div>
+            <?php endif; ?>
         </div>
     </div>
 
@@ -175,9 +237,9 @@ $isLocked = (float)$student->tuition_balance > 0;
             <tr>
                 <th style="width: 35%;">Subject Course</th>
 
-                <?php if ($hasBotData): ?> <th style="width: 12%;">BOT (20)</th> <?php endif; ?>
-                <?php if ($hasMotData): ?> <th style="width: 12%;">MOT (30)</th> <?php endif; ?>
-                <?php if ($hasEotData): ?> <th style="width: 12%;">EOT (50)</th> <?php endif; ?>
+                <?php if ($hasBotData): ?> <th style="width: 12%;"><?= $botColumnLabel ?></th> <?php endif; ?>
+                <?php if ($hasMotData): ?> <th style="width: 12%;"><?= $motColumnLabel ?></th> <?php endif; ?>
+                <?php if ($hasEotData): ?> <th style="width: 12%;"><?= $eotColumnLabel ?></th> <?php endif; ?>
 
                 <th style="width: 12%;">Grade</th>
                 <th style="width: 25%;">Assigned Assessment Remarks</th>
@@ -207,6 +269,23 @@ $isLocked = (float)$student->tuition_balance > 0;
 
         </tbody>
     </table>
+
+      <?php if (strpos($classLevel, 'Primary') !== false && ($totalMarksOutOf400 !== null || $classPosition !== null)): ?>
+        <div class="row g-3 mb-4 mx-0 text-dark bg-light border rounded p-3 text-center align-items-center">
+            <?php if ($totalMarksOutOf400 !== null): ?>
+                <div class="col-12 col-md-6">
+                    <span class="text-uppercase small tracking-wider d-block">Total Marks</span>
+                    <h5 class="fw-bold text-dark mb-0 mt-1"><?= number_format($totalMarksOutOf400, 0) ?> / 400</h5>
+                </div>
+            <?php endif; ?>
+            <?php if ($classPosition !== null): ?>
+                <div class="col-12 col-md-6">
+                    <span class="text-uppercase small tracking-wider d-block">Position In Class</span>
+                    <h5 class="fw-bold text-dark mb-0 mt-1"><?= (int)$classPosition ?> / <?= (int)$classSize ?></h5>
+                </div>
+            <?php endif; ?>
+        </div>
+    <?php endif; ?>
     &nbsp;
 
     <div class="row g-3 mb-4 mx-0 text-dark bg-white border border-2 border-dark rounded p-3 text-center align-items-center">
@@ -215,10 +294,18 @@ $isLocked = (float)$student->tuition_balance > 0;
             <h4 class="h2  fw-black text-dark mb-0 mt-1"><?= $summaryValueBlock ?></h4>
         </div>
         <div class="col-12 col-md-6">
-            <span class="text-uppercase font-monospace small tracking-wider text-light d-block">Awarding Classification Award</span>
+            <span class="text-uppercase font-monospace small tracking-wider text-light d-block"><?= $secondSummaryLabel ?></span>
             <h4 class="h2 font-monospace fw-black text-primary mb-0 mt-1"><?= $divisionLabel ?></h4>
         </div>
     </div>
+
+  
+
+    <?php if ($promotionNote): ?>
+        <div class="alert alert-warning border-0 py-2 px-3 mb-4 small">
+            <i class="bi bi-info-circle-fill me-1"></i> <?= Html::encode($promotionNote) ?>
+        </div>
+    <?php endif; ?>
 
     <div class="row pt-5 mt-5 fs-6" style="margin-top: 150px !important;">
         <div class="col-6 text-center border-top pt-2" style="border-top: 1px dashed #212529 !important;">
@@ -231,46 +318,93 @@ $isLocked = (float)$student->tuition_balance > 0;
         </div>
     </div>
 
-    <div class="mt-5 pt-3 border-top border-light border-opacity-20 no-print "style="width: 750px; height: 15550px;">
+    <div class="mt-5 pt-3 border-top border-dark border-opacity-25 report-key-block">
         <?php if (strpos($classLevel, 'Primary') !== false): ?>
-            <div class="p-3 bg-light rounded-3 border">
-                <h6 class="fw-bold text-dark text-xs mb-2 uppercase tracking-wider"><i class="bi bi-key-fill text-warning me-1"></i> Grading Key</h6>
-                <div class="row g-2 text-center text-xs  mb-2">
-                    <div class="col-4 col-md-1.3"><span class=" bg-light px-2 py-1">80-100 : D1</span></div>
-                    <div class="col-4 col-md-1.3"><span class=" bg-light px-2 py-1">75-79 : D2</span></div>
-                    <div class="col-4 col-md-1.3"><span class=" bg-light px-2 py-1 ">70-74 : C3</span></div>
-                    <div class="col-4 col-md-1.3"><span class=" bg-light px-2 py-1 ">65-69 : C4</span></div>
-                    <div class="col-4 col-md-1.3"><span class=" bg-light px-2 py-1 ">60-64 : C5</span></div>
-                    <div class="col-4 col-md-1.3"><span class=" bg-light px-2 py-1 ">50-59 : C6</span></div>
-                    <div class="col-4 col-md-1.3"><span class=" bg-light px-2 py-1">45-49 : P7</span></div>
-                    <div class="col-4 col-md-1.3"><span class=" bg-light px-2 py-1">40-44 : P8</span></div>
-                    <div class="col-4 col-md-1.3"><span class=" bg-light px-2 py-1 ">00-39 : F9</span></div>
-                </div>
-                <div class="border-top pt-2 mt-2 fs-7 text-muted">
-                    <strong>Awarding Aggregates:</strong> Div 1: 4-12 Points | Div 2: 13-24 Points | Div 3: 25-28 Points | Div 4: 29-32 Points. <span class="text-xs text-primary fw-bold">(Lower aggregate points indicate better academic standing)</span>
-                </div>
+            <div class="border border-dark p-3">
+                <h6 class="report-key-heading">Key To Grading</h6>
+                <table class="table table-bordered border-dark text-center mb-2 report-key-table">
+                    <thead>
+                        <tr class="table-light">
+                            <th>Grade</th><th>D1</th><th>D2</th><th>C3</th><th>C4</th><th>C5</th><th>C6</th><th>P7</th><th>P8</th><th>F9</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <th class="table-light">Score Range</th>
+                            <td>80-100</td><td>75-79</td><td>70-74</td><td>65-69</td><td>60-64</td><td>50-59</td><td>45-49</td><td>40-44</td><td>00-39</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="report-key-note mb-0">
+                    <strong>Awarding Aggregates:</strong> Division I 4&ndash;12 pts &middot; Division II 13&ndash;23 pts &middot; Division III 24&ndash;29 pts &middot; Division IV 30&ndash;34 pts &middot; Division U 35+ pts (Ungraded).
+                    <em>Lower aggregate points indicate better academic standing.</em>
+                </p>
             </div>
         <?php elseif (strpos($classLevel, 'Senior 5') !== false || strpos($classLevel, 'Senior 6') !== false): ?>
-            <div class="p-3 bg-light rounded-3 border">
-                <h6 class="fw-bold text-dark font-monospace text-xs mb-2 uppercase tracking-wider"> Official UACE A-Level Principal Points Conversion Key</h6>
-                <div class="row g-2 text-center text-xs mb-2">
-                    <div class="col-4 col-md-2"><div class="p-1 rounded fw-bold">D1 / D2 (A) : 6 Pts</div></div>
-                    <div class="col-4 col-md-2"><div class="p-1  rounded fw-bold">C3 (B) : 5 Pts</div></div>
-                    <div class="col-4 col-md-2"><div class="p-1   rounded fw-bold">C4 (C) : 4 Pts</div></div>
-                    <div class="col-4 col-md-2"><div class="p-1 text-dark rounded fw-bold">C5 (D) : 3 Pts</div></div>
-                    <div class="col-4 col-md-2"><div class="p-1   rounded fw-bold">C6 (E) : 2 Pts</div></div>
-                    <div class="col-4 col-md-2"><div class="p-1  text-dark rounded fw-bold">P7/P8 (O) : 1 Pt</div></div>
-                </div>
-                <div class="border-top pt-2 mt-2 fs-7 text-muted ">
-                    <strong>UACE Points Rules:</strong> Core Principal Maximum Score = 18 Points (3 Subjects × 6 Pts). General Paper Pass = 1 Point | Subsidiary Math/ICT Pass = 1 Point. <span class="text-xs fw-bold">Total Maximum Scale Matrix = 20 Points.</span>
-                </div>
+            <div class="border border-dark p-3">
+                <h6 class="report-key-heading">Official UACE A-Level Principal Points Conversion Key</h6>
+                <table class="table table-bordered border-dark text-center mb-2 report-key-table">
+                    <thead>
+                        <tr class="table-light">
+                            <th>Grade</th><th>D1 / D2</th><th>C3</th><th>C4</th><th>C5</th><th>C6</th><th>P7 / P8</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <th class="table-light">Letter</th>
+                            <td>A</td><td>B</td><td>C</td><td>D</td><td>E</td><td>O</td>
+                        </tr>
+                        <tr>
+                            <th class="table-light">Points</th>
+                            <td>6</td><td>5</td><td>4</td><td>3</td><td>2</td><td>1</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="report-key-note mb-0">
+                    <strong>UACE Points Rules:</strong> Core Principal maximum = 18 pts (3 subjects &times; 6 pts). Subsidiary pass (General Paper / ICT / Sub-Math, C6 or better i.e. 50+ marks) = 1 pt each, capped at 2 pts.
+                    <em>Total maximum scale = 20 points.</em>
+                </p>
+            </div>
+        <?php elseif (strpos($classLevel, 'Senior 1') !== false || strpos($classLevel, 'Senior 2') !== false): ?>
+            <div class="border border-dark p-3">
+                <h6 class="report-key-heading">Key To Grading</h6>
+                <table class="table table-bordered border-dark text-center mb-2 report-key-table">
+                    <thead>
+                        <tr class="table-light">
+                            <th>Grade</th><th>D1</th><th>D2</th><th>C3</th><th>C4</th><th>C5</th><th>C6</th><th>P7</th><th>P8</th><th>F9</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <th class="table-light">Score Range</th>
+                            <td>80-100</td><td>75-79</td><td>70-74</td><td>65-69</td><td>60-64</td><td>50-59</td><td>45-49</td><td>40-44</td><td>00-39</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="report-key-note mb-0">
+                    Lower Secondary reporting uses the <strong>overall average</strong> across all subjects rather than an aggregate, in line with the competency-based curriculum.
+                </p>
             </div>
         <?php else: ?>
-            <div class="p-3 bg-light rounded-3 border">
-                <h6 class="fw-bold text-dark  text-xs mb-2 uppercase tracking-wider"><i class="bi bi-key-fill text-warning me-1"></i> Official UCE O-Level Best 8 Grading Key</h6>
-                <div class="text-muted small font-monospace">
-                    Div 1: 8-32 Points | Div 2: 33-45 Points | Div 3: 46-58 Points | Div 4: 59-72 Points. Grades scaled from Distinction 1 (best) down to Fail 9.
-                </div>
+            <div class="border border-dark p-3">
+                <h6 class="report-key-heading">Official UCE O-Level Best 8 Grading Key</h6>
+                <table class="table table-bordered border-dark text-center mb-2 report-key-table">
+                    <thead>
+                        <tr class="table-light">
+                            <th>Grade</th><th>D1</th><th>D2</th><th>C3</th><th>C4</th><th>C5</th><th>C6</th><th>P7</th><th>P8</th><th>F9</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <th class="table-light">Score Range</th>
+                            <td>80-100</td><td>75-79</td><td>70-74</td><td>65-69</td><td>60-64</td><td>50-59</td><td>45-49</td><td>40-44</td><td>00-39</td>
+                        </tr>
+                    </tbody>
+                </table>
+                <p class="report-key-note mb-0">
+                    <strong>Awarding Aggregates:</strong> Division I 8&ndash;32 pts &middot; Division II 33&ndash;45 pts &middot; Division III 46&ndash;58 pts &middot; Division IV 59&ndash;72 pts &middot; Division U 73+ pts (Ungraded). Best 8 of 10 subjects counted.
+                    <em>Failing English or Mathematics does not block automatic promotion.</em>
+                </p>
             </div>
         <?php endif; ?>
     </div>
@@ -296,5 +430,57 @@ $isLocked = (float)$student->tuition_balance > 0;
 @media print { .financial-lock-watermark-overlay { -webkit-print-color-adjust: exact; print-color-adjust: exact; } body { background: #fff !important; } }
 .fs-7 { font-size: 0.8rem !important; }
 .text-xxs { font-size: 0.72rem !important; }
+
+.report-key-block {
+    font-family: 'Times New Roman', serif;
+}
+
+.report-key-heading {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    margin-bottom: 0.75rem;
+    color: #212529;
+}
+
+.report-key-table {
+    font-size: 0.8rem;
+}
+
+.report-key-table th,
+.report-key-table td {
+    padding: 0.35rem 0.4rem;
+    vertical-align: middle;
+}
+
+.report-key-table thead th {
+    font-weight: 700;
+    background-color: #f1f1f1 !important;
+}
+
+.report-key-table tbody th {
+    font-weight: 700;
+    text-align: left;
+    white-space: nowrap;
+}
+
+.report-key-note {
+    font-size: 0.78rem;
+    color: #333;
+    line-height: 1.5;
+}
+
+.report-key-note em {
+    color: #555;
+}
+
+@media print {
+    .report-key-block {
+        break-inside: avoid;
+    }
+}
 
 </style>

@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 /** @var yii\web\View $this */
 /** @var array $stats */
+/** @var array $channelBreakdown */
+/** @var array $defaulterHeatmap */
+/** @var array $collectionVelocity */
 /** @var app\models\Transactions[] $recentTransactions */
 /** @var yii\data\Pagination $txPages */
 /** @var string $txSearchKeyword */
@@ -12,6 +15,7 @@ declare(strict_types=1);
 use yii\bootstrap5\LinkPager;
 use yii\bootstrap5\Html;
 use yii\helpers\Url;
+use app\models\Students;
 
 $this->title = 'KORA ERP Bursar Operations';
 
@@ -24,6 +28,8 @@ $txBadgeDefault = 'text-danger';
 $totalCount = $txPages->totalCount ?? count($recentTransactions);
 $pageStart  = $totalCount > 0 ? ($txPages->getOffset() + 1) : 0;
 $pageEnd    = min($txPages->getOffset() + $txPages->getLimit(), $totalCount);
+
+$userSchoolId = Yii::$app->user->identity->school_id;
 ?>
 
 <div class="site-bursar bg-light py-4 min-vh-100">
@@ -67,6 +73,28 @@ $pageEnd    = min($txPages->getOffset() + $txPages->getLimit(), $totalCount);
             </div>
         </div>
 
+        <!-- Key Bursar Actions -->
+        <div class="d-flex flex-wrap gap-2 mb-4">
+            <button type="button" class="btn btn-outline-success btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#walletModal">
+                <i class="bi bi-wallet-fill"></i> Wallet Top-Up / Freeze
+            </button>
+            <button type="button" class="btn btn-outline-danger btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#voidModal">
+                <i class="bi bi-x-octagon-fill"></i> Void / Reverse Transaction
+            </button>
+            <button type="button" class="btn btn-outline-primary btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#batchInvoiceModal">
+                <i class="bi bi-receipt"></i> Batch Invoice Class
+            </button>
+           
+            <a href="<?= Url::toRoute(['site/expense-claims']) ?>" class="btn btn-outline-dark btn-sm fw-bold">
+                <i class="bi bi-clipboard-check-fill"></i> Approve Expense Claims
+            </a>
+             <?= Html::beginForm(['site/force-pos-sync'], 'post', ['class' => 'd-inline']) ?>
+                <button type="submit" class="btn btn-outline-secondary btn-sm fw-bold">
+                    <i class="bi bi-arrow-repeat"></i> Force POS Sync
+                </button>
+            <?= Html::endForm() ?>
+        </div>
+
         <!-- Stat cards -->
         <div class="row g-3 mb-4">
             <div class="col-12 col-md-4">
@@ -106,6 +134,114 @@ $pageEnd    = min($txPages->getOffset() + $txPages->getLimit(), $totalCount);
                             <i class="bi bi-wallet2 fs-5"></i>
                         </span>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settlement Reconciliation Tracker + S-Wallet Float Monitor -->
+        <div class="row g-3 mb-4">
+            <div class="col-12 col-lg-6">
+                <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h6 class="fw-bold text-dark mb-0"><i class="bi bi-arrow-left-right me-2 text-primary"></i>Settlement Reconciliation</h6>
+                        <?php if (($stats['settlement_gap'] ?? 0) > 0): ?>
+                            <span class="badge bg-warning-subtle text-warning-emphasis fw-semibold">Gap: UGX <?= number_format($stats['settlement_gap'], 0) ?></span>
+                        <?php else: ?>
+                            <span class="badge bg-success-subtle text-success fw-semibold">Fully Settled</span>
+                        <?php endif; ?>
+                    </div>
+                    <div class="d-flex gap-4">
+                        <div class="flex-fill">
+                            <div class="text-muted small text-uppercase fw-semibold">Network Cleared</div>
+                            <div class="h4 fw-bold text-dark mb-0">UGX <?= number_format($stats['network_cleared'] ?? 0, 0) ?></div>
+                            <div class="text-muted small">Approved by MTN / Airtel / Gateway</div>
+                        </div>
+                        <div class="vr"></div>
+                        <div class="flex-fill">
+                            <div class="text-muted small text-uppercase fw-semibold">Bank Settled</div>
+                            <div class="h4 fw-bold text-dark mb-0">UGX <?= number_format($stats['bank_settled'] ?? 0, 0) ?></div>
+                            <div class="text-muted small">Confirmed in Stanbic/DFCU account</div>
+                        </div>
+                    </div>
+                    <?php $pct = ($stats['network_cleared'] ?? 0) > 0 ? min(100, (($stats['bank_settled'] ?? 0) / $stats['network_cleared']) * 100) : 100; ?>
+                    <div class="progress mt-3" style="height:6px;">
+                        <div class="progress-bar bg-success" style="width: <?= $pct ?>%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-6">
+                <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100">
+                    <h6 class="fw-bold text-dark mb-3"><i class="bi bi-wallet2 me-2 text-success"></i>S-Wallet Float Monitor</h6>
+                    <div class="d-flex gap-4">
+                        <div class="flex-fill">
+                            <div class="text-muted small text-uppercase fw-semibold">Total Float Liability</div>
+                            <div class="h4 fw-bold text-dark mb-0">UGX <?= number_format($stats['swallet_float'] ?? 0, 0) ?></div>
+                            <div class="text-muted small">Held in escrow for canteen use</div>
+                        </div>
+                        <div class="vr"></div>
+                        <div class="flex-fill">
+                            <div class="text-muted small text-uppercase fw-semibold">Last 7 Days Top-ups</div>
+                            <div class="h4 fw-bold text-dark mb-0">UGX <?= number_format($stats['swallet_7d_topups'] ?? 0, 0) ?></div>
+                            <div class="text-muted small">Inflow into student wallets</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Channel Utilization + Defaulter Heatmap -->
+        <div class="row g-3 mb-4">
+            <div class="col-12 col-lg-5">
+                <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100">
+                    <h6 class="fw-bold text-dark mb-3"><i class="bi bi-pie-chart-fill me-2 text-info"></i>Channel Utilization</h6>
+                    <canvas id="channelDonut" height="220"></canvas>
+                </div>
+            </div>
+            <div class="col-12 col-lg-7">
+                <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100">
+                    <h6 class="fw-bold text-dark mb-3"><i class="bi bi-grid-3x3-gap-fill me-2 text-danger"></i>Defaulter Heatmap by Class</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm mb-0">
+                            <thead class="text-muted text-uppercase small">
+                                <tr><th>Class</th><th class="text-end">Defaulters</th><th class="text-end">Outstanding</th><th></th></tr>
+                            </thead>
+                            <tbody>
+                                <?php if (empty($defaulterHeatmap)): ?>
+                                    <tr><td colspan="4" class="text-center text-muted py-3">No class-level data available.</td></tr>
+                                <?php else: ?>
+                                    <?php
+                                    $maxOutstanding = max(array_column($defaulterHeatmap, 'total_outstanding') ?: [1]);
+                                    if ($maxOutstanding <= 0) $maxOutstanding = 1;
+                                    foreach ($defaulterHeatmap as $row):
+                                        $intensity = min(1, ((float)$row['total_outstanding']) / $maxOutstanding);
+                                        $bg = 'rgba(220,53,69,' . round(0.12 + $intensity * 0.5, 2) . ')';
+                                    ?>
+                                        <tr style="background-color: <?= $bg ?>;">
+                                            <td class="fw-semibold"><?= Html::encode($row['class_level']) ?></td>
+                                            <td class="text-end"><?= (int)$row['defaulter_count'] ?></td>
+                                            <td class="text-end fw-bold">UGX <?= number_format((float)$row['total_outstanding'], 0) ?></td>
+                                            <td style="width:80px;">
+                                                <div class="progress" style="height:6px;">
+                                                    <div class="progress-bar bg-danger" style="width: <?= round($intensity * 100) ?>%"></div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <?php endforeach; ?>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Collection Velocity Graph -->
+        <div class="row g-3 mb-4">
+            <div class="col-12">
+                <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100">
+                    <h6 class="fw-bold text-dark mb-3"><i class="bi bi-graph-up-arrow me-2 text-primary"></i>Collection Velocity — This Term vs Last Term</h6>
+                    <canvas id="velocityChart" height="90"></canvas>
                 </div>
             </div>
         </div>
@@ -175,6 +311,9 @@ $pageEnd    = min($txPages->getOffset() + $txPages->getLimit(), $totalCount);
                                         <span class="badge rounded-pill px-3 py-2 fw-semibold <?= $badgeClass ?>">
                                             <?= Html::encode($tx->transaction_type) ?>
                                         </span>
+                                        <?php if (($tx->status ?? null) === 'VOIDED'): ?>
+                                            <span class="badge bg-secondary rounded-pill">Voided</span>
+                                        <?php endif; ?>
                                     </td>
 
                                     <td class="text-secondary fw-semibold"><?= Html::encode($tx->payment_channel) ?></td>
@@ -187,6 +326,9 @@ $pageEnd    = min($txPages->getOffset() + $txPages->getLimit(), $totalCount);
 
                                     <td class="pe-4 fw-bold text-dark text-end">
                                         UGX <?= number_format((float)$tx->amount, 0) ?>
+                                        <a href="<?= Url::toRoute(['site/print-receipt', 'id' => $tx->id]) ?>" target="_blank" class="btn btn-sm btn-light border ms-2" title="Print Receipt">
+                                            <i class="bi bi-printer-fill"></i>
+                                        </a>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -212,3 +354,295 @@ $pageEnd    = min($txPages->getOffset() + $txPages->getLimit(), $totalCount);
         </div>
     </div>
 </div>
+
+<!-- ===================== MODALS ===================== -->
+
+<!-- Wallet Modal -->
+<div class="modal fade" id="walletModal" tabindex="-1">
+    <div class="modal-dialog">
+        <?= Html::beginForm(['site/wallet-adjust'], 'post') ?>
+        <div class="modal-content rounded-3">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Wallet Top-Up / Freeze</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Step 1 — Class</label>
+                    <select id="walletClassSelect" class="form-select" required>
+                        <option value="">Select class...</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Step 2 — Student</label>
+                    <select name="student_id" id="walletStudentSelect" class="form-select" required disabled>
+                        <option value="">Select a class first...</option>
+                    </select>
+                    <div class="form-text">Search by name — payment code shown to tell same-name students apart.</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Action</label>
+                    <select name="wallet_action" class="form-select" id="walletActionSelect" required>
+                        <option value="TOPUP">Top-Up</option>
+                        <option value="FREEZE">Freeze Wallet</option>
+                        <option value="UNFREEZE">Unfreeze Wallet</option>
+                    </select>
+                </div>
+                <div class="mb-3" id="topupAmountField">
+                    <label class="form-label small fw-semibold">Amount (UGX)</label>
+                    <input type="number" name="amount" class="form-control" min="0" step="500">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-success fw-bold">Confirm</button>
+            </div>
+        </div>
+        <?= Html::endForm() ?>
+    </div>
+</div>
+
+<!-- Void/Reversal Modal -->
+<div class="modal fade" id="voidModal" tabindex="-1">
+    <div class="modal-dialog">
+        <?= Html::beginForm(['site/void-transaction'], 'post') ?>
+        <div class="modal-content rounded-3">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Void / Reverse Transaction</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Transaction</label>
+                    <input type="text" id="voidTxLabel" class="form-control" readonly disabled placeholder="Select a transaction using the void icon on a row">
+                    <input type="hidden" name="id" id="voidTxId" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Reason (required — audit log)</label>
+                    <textarea name="void_reason" class="form-control" rows="3" placeholder="e.g. Parent disputes MTN MoMo charge, network double-debit" required></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-danger fw-bold">Void &amp; Reverse</button>
+            </div>
+        </div>
+        <?= Html::endForm() ?>
+    </div>
+</div>
+
+<!-- Batch Invoice Modal -->
+<div class="modal fade" id="batchInvoiceModal" tabindex="-1">
+    <div class="modal-dialog bg-white">
+        <?= Html::beginForm(['site/batch-invoice'], 'post') ?>
+        <div class="modal-content rounded-3">
+            <div class="modal-header">
+                <h5 class="modal-title fw-bold">Batch Invoice &amp; Waiver</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Class</label>
+                    <select name="class_level" id="batchClassSelect" class="form-select" required>
+                        <option value="">Select class...</option>
+                    </select>
+                    <div class="form-text" id="batchClassCount"></div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Base Fee (UGX)</label>
+                    <input type="number" name="base_fee" class="form-control" min="0" step="1000" required>
+                </div>
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" name="apply_sibling_waiver" value="1" id="sibWaiver">
+                    <label class="form-check-label small" for="sibWaiver">Apply sibling waiver</label>
+                </div>
+                <div class="form-check mb-3">
+                    <input class="form-check-input" type="checkbox" name="apply_staff_waiver" value="1" id="staffWaiver">
+                    <label class="form-check-label small" for="staffWaiver">Apply staff-child waiver</label>
+                </div>
+                <div class="alert alert-warning small mb-0 py-2 d-none" id="batchInvoiceWarning">
+                    <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                    This will add the base fee to <strong id="batchInvoiceWarningCount">0</strong> students' outstanding balances. This cannot be undone in bulk — you'd need to reverse each transaction individually.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary fw-bold" id="batchInvoiceSubmit" disabled>Generate Invoices</button>
+            </div>
+        </div>
+        <?= Html::endForm() ?>
+    </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const walletSelect = document.getElementById('walletActionSelect');
+    const topupField = document.getElementById('topupAmountField');
+    if (walletSelect && topupField) {
+        walletSelect.addEventListener('change', function () {
+            topupField.style.display = this.value === 'TOPUP' ? 'block' : 'none';
+        });
+    }
+});
+</script>
+
+<?php
+$channelLabels = json_encode(array_column($channelBreakdown, 'payment_channel'));
+$channelValues = json_encode(array_map('floatval', array_column($channelBreakdown, 'total')));
+$velocityCurrent = json_encode($collectionVelocity['current'] ?? []);
+$velocityPrevious = json_encode($collectionVelocity['previous'] ?? []);
+
+$this->registerJsFile('https://cdn.jsdelivr.net/npm/chart.js@4', ['position' => \yii\web\View::POS_END]);
+$this->registerJs(<<<JS
+    document.addEventListener('DOMContentLoaded', function () {
+        const channelCanvas = document.getElementById('channelDonut');
+        if (channelCanvas) {
+            new Chart(channelCanvas, {
+                type: 'doughnut',
+                data: {
+                    labels: {$channelLabels},
+                    datasets: [{
+                        data: {$channelValues},
+                        backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#6f42c1', '#20c997']
+                    }]
+                },
+                options: { plugins: { legend: { position: 'bottom' } } }
+            });
+        }
+
+        const cur = {$velocityCurrent};
+        const prev = {$velocityPrevious};
+        const velocityCanvas = document.getElementById('velocityChart');
+        if (velocityCanvas) {
+            new Chart(velocityCanvas, {
+                type: 'line',
+                data: {
+                    labels: cur.map((r, i) => 'Day ' + (i + 1)),
+                    datasets: [
+                        { label: 'This Term', data: cur.map(r => r.cumulative), borderColor: '#0d6efd', tension: 0.3 },
+                        { label: 'Last Term', data: prev.map(r => r.cumulative), borderColor: '#adb5bd', borderDash: [5,5], tension: 0.3 }
+                    ]
+                },
+                options: { plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } }
+            });
+        }
+    });
+JS
+, \yii\web\View::POS_END);
+?>
+<?php
+$this->registerCssFile('https://cdn.jsdelivr.net/npm/select2@4.1.0/dist/css/select2.min.css');
+$this->registerJsFile('https://cdn.jsdelivr.net/npm/select2@4.1.0/dist/js/select2.min.js', [
+    'depends' => [\yii\web\JqueryAsset::class],
+]);
+
+$classListUrl = Url::to(['site/class-list']);
+$studentsByClassUrl = Url::to(['site/students-by-class']);
+
+$this->registerJs(<<<JS
+    document.addEventListener('DOMContentLoaded', function () {
+        const classSelect = $('#walletClassSelect');
+        const studentSelect = $('#walletStudentSelect');
+
+        // Load classes once when modal opens
+        $('#walletModal').on('show.bs.modal', function () {
+            if (classSelect.find('option').length <= 1) {
+                fetch('{$classListUrl}')
+                    .then(r => r.json())
+                    .then(classes => {
+                        classes.forEach(c => {
+                            classSelect.append(new Option(c, c));
+                        });
+                    });
+            }
+        });
+
+        classSelect.on('change', function () {
+            const classLevel = this.value;
+            studentSelect.prop('disabled', !classLevel).html('<option value="">Loading...</option>');
+            if (!classLevel) {
+                studentSelect.html('<option value="">Select a class first...</option>');
+                return;
+            }
+
+            studentSelect.select2({
+                dropdownParent: $('#walletModal'),
+                ajax: {
+                    url: '{$studentsByClassUrl}',
+                    dataType: 'json',
+                    delay: 250,
+                    data: params => ({ class_level: classLevel, q: params.term }),
+                    processResults: data => ({ results: data })
+                },
+                placeholder: 'Search student by name...',
+                minimumInputLength: 0
+            });
+            studentSelect.prop('disabled', false).html('');
+        });
+
+        const walletSelect = document.getElementById('walletActionSelect');
+        const topupField = document.getElementById('topupAmountField');
+        if (walletSelect && topupField) {
+            walletSelect.addEventListener('change', function () {
+                topupField.style.display = this.value === 'TOPUP' ? 'block' : 'none';
+            });
+        }
+    });
+JS
+, \yii\web\View::POS_END);
+?>
+
+<?php
+$classListUrl = Url::to(['site/class-list']);
+$classCountUrl = Url::to(['site/class-student-count']);
+
+$this->registerJs(<<<JS
+    document.addEventListener('DOMContentLoaded', function () {
+        const batchClassSelect = document.getElementById('batchClassSelect');
+        const batchClassCount = document.getElementById('batchClassCount');
+        const batchWarning = document.getElementById('batchInvoiceWarning');
+        const batchWarningCount = document.getElementById('batchInvoiceWarningCount');
+        const batchSubmit = document.getElementById('batchInvoiceSubmit');
+
+        document.getElementById('batchInvoiceModal')?.addEventListener('show.bs.modal', function () {
+            if (batchClassSelect.options.length <= 1) {
+                fetch('{$classListUrl}')
+                    .then(r => r.json())
+                    .then(classes => {
+                        classes.forEach(c => {
+                            const opt = document.createElement('option');
+                            opt.value = c;
+                            opt.textContent = c;
+                            batchClassSelect.appendChild(opt);
+                        });
+                    });
+            }
+        });
+
+        batchClassSelect?.addEventListener('change', function () {
+            const classLevel = this.value;
+            batchSubmit.disabled = true;
+            batchWarning.classList.add('d-none');
+            batchClassCount.textContent = '';
+
+            if (!classLevel) return;
+
+            batchClassCount.textContent = 'Checking class size...';
+            fetch('{$classCountUrl}?class_level=' + encodeURIComponent(classLevel))
+                .then(r => r.json())
+                .then(data => {
+                    batchClassCount.textContent = data.count + ' student(s) in this class.';
+                    batchWarningCount.textContent = data.count;
+                    if (data.count > 0) {
+                        batchWarning.classList.remove('d-none');
+                        batchSubmit.disabled = false;
+                    } else {
+                        batchClassCount.textContent = 'No students found in this class — nothing to invoice.';
+                    }
+                });
+        });
+    });
+JS
+, \yii\web\View::POS_END);
+?>
+
