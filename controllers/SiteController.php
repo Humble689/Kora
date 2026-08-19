@@ -161,7 +161,6 @@ class SiteController extends Controller
     }
 
    
-     
     public function actionLogin()
     {
         if (!Yii::$app->user->isGuest) {
@@ -312,13 +311,11 @@ class SiteController extends Controller
     $userSchoolId = Yii::$app->user->identity->school_id;
     $request = Yii::$app->request;
 
-    // --- Base stats (existing) ---
     $stats = [
         'total_tuition'     => (float) Transactions::find()->joinWith('student')->where(['transaction_type' => 'TUITION', 'students.school_id' => $userSchoolId])->sum('amount'),
         'total_outstanding' => (float) Students::find()->where(['school_id' => $userSchoolId])->sum('tuition_balance'),
         'total_swallet'     => (float) Students::find()->where(['school_id' => $userSchoolId])->sum('swallet_balance'),
     ];
-// --- Settlement Reconciliation, broken down by channel ---
 $reconciliationByChannel = Transactions::find()
     ->joinWith('student')
     ->select([
@@ -331,8 +328,6 @@ $reconciliationByChannel = Transactions::find()
     ->asArray()
     ->all();
 
-// Only channels with a real network→bank settlement gap. Cash and internal
-// wallet transfers settle differently and are tracked separately.
 $settlementRelevantChannels = ['MTN_MOMO', 'AIRTEL_MONEY', 'ONLINE_PORTAL'];
 
 $stats['network_cleared'] = 0;
@@ -345,7 +340,6 @@ foreach ($reconciliationByChannel as $row) {
 }
 $stats['settlement_gap'] = $stats['network_cleared'] - $stats['bank_settled'];
 
-    // (total_swallet above already covers this, but expose a distinct "float liability" label + last 7-day movement)
     $stats['swallet_float'] = $stats['total_swallet'];
     $stats['swallet_7d_topups'] = (float) Transactions::find()
         ->joinWith('student')
@@ -353,7 +347,6 @@ $stats['settlement_gap'] = $stats['network_cleared'] - $stats['bank_settled'];
         ->andWhere(['>=', 'transactions.created_at', date('Y-m-d H:i:s', strtotime('-7 days'))])
         ->sum('amount');
 
-    // --- 3. Channel Utilization Breakdown ---
     $channelBreakdown = Transactions::find()
         ->joinWith('student')
         ->select(['transactions.payment_channel', 'total' => 'SUM(transactions.amount)'])
@@ -370,11 +363,9 @@ $stats['settlement_gap'] = $stats['network_cleared'] - $stats['bank_settled'];
     ->asArray()
     ->all();
 
-    // --- 5. Collection Velocity Graph (this term vs last term, daily cumulative) ---
     $currentTermId = Yii::$app->user->identity->school->current_term_id ?? null;
     $collectionVelocity = $this->buildCollectionVelocitySeries($userSchoolId, $currentTermId);
 
-    // --- Transactions table (existing, unchanged) ---
     $txSearchKeyword = trim($request->get('tx_q', ''));
     $txQuery = Transactions::find()->joinWith('student')->where(['students.school_id' => $userSchoolId]);
 
@@ -413,11 +404,7 @@ $stats['settlement_gap'] = $stats['network_cleared'] - $stats['bank_settled'];
 ]);
 }
 
-/**
- * Builds cumulative daily collection totals for the last 90 days vs the
- * previous 90 days, indexed by day-number so both lines overlay on the chart.
- * No dependency on a terms/academic-terms table.
- */
+
 private function buildCollectionVelocitySeries($schoolId, $currentTermId = null)
 {
     $periodDays = 90;
@@ -466,7 +453,6 @@ private function buildCollectionVelocitySeries($schoolId, $currentTermId = null)
     $classLevel    = trim($request->get('class_level', 'ALL'));
     $sort          = trim($request->get('sort', ''));
 
-    // Distinct class levels actually present for this school, for the filter dropdown.
     $classLevels = Students::find()
         ->select('class_level')
         ->distinct()
@@ -487,7 +473,6 @@ private function buildCollectionVelocitySeries($schoolId, $currentTermId = null)
     }
 
     if ($classLevel !== 'ALL' && $classLevel !== '') {
-        // Whitelist against real values so an arbitrary GET param can't probe other data.
         if (in_array($classLevel, $classLevels, true)) {
             $studentQuery->andWhere(['class_level' => $classLevel]);
         }
@@ -825,7 +810,6 @@ public function actionProcessPayment()
 
         if (Yii::$app->request->isPost && $model->load(Yii::$app->request->post())) {
             
-            //  Open an atomic database transaction to prevent partial data execution crashes
             $dbTransaction = Yii::$app->db->beginTransaction();
             try {
                 if (!$model->save()) {
@@ -1259,7 +1243,6 @@ public function actionRegisterStudent()
         $existingMarks = [];
 
         if (!empty($assignments)) {
-            // Default to the first assignment if none is chosen yet
             $activeAssignment = $assignments[0];
             foreach ($assignments as $asg) {
                 if ((int)$asg['id'] === $selectedAssignmentId) {
@@ -1275,7 +1258,6 @@ public function actionRegisterStudent()
                 ->where(['school_id' => $schoolId, 'class_level' => $classLevel, 'status' => 'ACTIVE']);
 
             if (strpos($classLevel, 'Primary') !== false) {
-                // Primary Tiers: Everyone takes all 4 fixed core subjects automatically
             } 
             elseif (strpos($classLevel, 'Senior 1') !== false || strpos($classLevel, 'Senior 2') !== false || strpos($classLevel, 'Senior 3') !== false || strpos($classLevel, 'Senior 4') !== false) {
                 
@@ -1435,8 +1417,8 @@ public function actionDosReview()
 
     $selectedClass   = $request->get('class_level', 'Senior 1');
     $selectedTerm    = $request->get('term', 'TERM_1');
-    $selectedSubject = $request->get('subject', '');           // '' = all subjects
-    $onlyPending     = $request->get('status') === 'pending';  // toggled via the "Show pending only" link
+    $selectedSubject = $request->get('subject', '');           
+    $onlyPending     = $request->get('status') === 'pending'; 
     $pageSize        = (int) $request->get('per_page', 20);
     $pageSize        = in_array($pageSize, [25, 50, 100], true) ? $pageSize : 20;
     $academicYear    = (int) date('Y');
@@ -1497,9 +1479,7 @@ public function actionDosReview()
         ]),
     ]);
 
-    // LIMIT/OFFSET are interpolated directly (not bound) — both are cast to int
-    // by Pagination above, so this is safe and sidesteps LIMIT/OFFSET binding
-    // quirks some PDO/MySQL configs have with named params.
+ 
     $rawRecords = $db->createCommand(
         "SELECT m.*, s.name as student_name
          FROM academic_marks m
@@ -1566,13 +1546,11 @@ public function actionDosReview()
 
         $schoolId = Yii::$app->user->identity->school_id;
 
-        // Fetch all teachers registered under this specific school
         $teachers = User::find()
             ->where(['school_id' => $schoolId, 'role' => 'TEACHER'])
             ->orderBy(['username' => SORT_ASC])
             ->all();
 
-        // Fetch all existing assignments across the institution
         $activeAssignments = Yii::$app->db->createCommand(
             'SELECT a.*, u.username as teacher_name 
              FROM teacher_assignments a
@@ -1581,7 +1559,6 @@ public function actionDosReview()
              ORDER BY u.username ASC, a.class_level ASC'
         )->bindValue(':sid', $schoolId)->queryAll();
 
-        //  Handle new assignment submissions
         if (Yii::$app->request->isPost) {
             $postData = Yii::$app->request->post();
             
@@ -1639,19 +1616,11 @@ public function actionDosReview()
         return $this->render('print_reports', [
             'students' => $students,
             'selectedClass' => $selectedClass,
-            'selectedTerm' => $selectedTerm, // Passes variable down to fix the undefined crash
+            'selectedTerm' => $selectedTerm, 
         ]);
     }
 
 
-
- 
-
-/**
- * Replace your existing actionViewReportCard with this version, and add
- * the private computePrimaryClassRanking() method below it to the same
- * SiteController class.
- */
 public function actionViewReportCard($id, $term = 'TERM_1')
 {
     if (Yii::$app->user->isGuest) {
@@ -1666,14 +1635,11 @@ public function actionViewReportCard($id, $term = 'TERM_1')
         throw new \yii\web\NotFoundHttpException("Target student record profile file not found.");
     }
 
-    //  Fetch all sealed or pending marks for this child matching selected parameters
     $gradesList = Yii::$app->db->createCommand(
         'SELECT * FROM academic_marks 
          WHERE student_id = :sid AND term = :trm AND academic_year = :yr'
     )->bindValues([':sid' => $id, ':trm' => $term, ':yr' => $academicYear])->queryAll();
 
-    // Class position only applies to Primary — everything else keeps the
-    // aggregate/average/points systems from the view, no ranking needed.
     $classPosition = null;
     $classSize = null;
     if (strpos($student->class_level, 'Primary') !== false) {
@@ -1692,20 +1658,11 @@ public function actionViewReportCard($id, $term = 'TERM_1')
     ]);
 }
 
-/**
- * Ranks a Primary student against their classmates by total marks across
- * the 4 core PLE subjects, for the given class/term/year.
- *
- * ADJUST: $primaryCoreSubjects to match your actual subject_name values.
- */
+//ranking
 private function computePrimaryClassRanking(int $schoolId, string $classLevel, string $term, int $academicYear, int $studentId): array
 {
-    // ADJUST to your actual subject_name values for the 4 PLE core subjects
     $primaryCoreSubjects = ['English', 'Mathematics', 'Science', 'Social Studies'];
 
-    // Named placeholders (not ?) — Yii's bindValues() expects either named
-    // params or 1-indexed positional keys; array_merge() here would produce
-    // 0-indexed keys, which PDO rejects (hence the crash).
     $subjectParams = [];
     $subjectPlaceholders = [];
     foreach ($primaryCoreSubjects as $i => $subjectName) {
@@ -1767,7 +1724,6 @@ private function computePrimaryClassRanking(int $schoolId, string $classLevel, s
                 return $this->redirect(['site/dos-review', 'class_level' => $classLevel, 'term' => $term]);
             }
 
-                // Save the D.O.S rejection notes strictly inside the new feedback box
             $pendingCondition = ['or',
                 ['bot_status' => 'PENDING_REVIEW'],
                 ['mot_status' => 'PENDING_REVIEW'],
@@ -1806,7 +1762,6 @@ private function computePrimaryClassRanking(int $schoolId, string $classLevel, s
             throw new \yii\web\NotFoundHttpException("Institution configuration matrix corrupted.");
         }
 
-        //  INHERITED kpi METRICS: Aggregate real-time analytics across all school departments
         $stats = [
             'total_collected' => (float) Transactions::find()->joinWith('student')->where(['transaction_type' => 'TUITION', 'students.school_id' => $schoolId])->sum('amount'),
             'total_outstanding' => (float) Students::find()->where(['school_id' => $schoolId])->sum('tuition_balance'),
@@ -1814,7 +1769,6 @@ private function computePrimaryClassRanking(int $schoolId, string $classLevel, s
             'total_staff' => (int) User::find()->where(['school_id' => $schoolId])->count(),
         ];
 
-        //Monitor pending grading sheets submitted by teachers
                 $pendingSheets = Yii::$app->db->createCommand(
                         "SELECT subject_name, class_level, term, COUNT(id) as student_count
                          FROM academic_marks
@@ -1824,7 +1778,6 @@ private function computePrimaryClassRanking(int $schoolId, string $classLevel, s
                          LIMIT 5"
                 )->bindValue(':sid', $schoolId)->queryAll();
 
-        // Combined stream of latest clearing network receipts
         $recentTransactions = Transactions::find()
             ->joinWith('student')
             ->where(['students.school_id' => $schoolId])
@@ -1858,7 +1811,6 @@ public function actionBulkModerateMarks()
 
     $validColumns = ['bot', 'mot', 'eot'];
 
-    // Tokens look like "482_bot" — {record_id}_{column}
     $selectedTokens = $request->post('selected_marks', []);
     $unsealTokens = $request->post('selected_unseal', []);
 
@@ -1980,7 +1932,6 @@ public function actionBatchPrintReports($class_level, $term = 'TERM_1')
     $schoolId = Yii::$app->user->identity->school_id;
     $academicYear = (int)date('Y');
 
-    // to prevent defaulting records from bloating memory space blocks
     $students = \app\models\Students::find()
         ->where(['school_id' => $schoolId, 'class_level' => $class_level, 'status' => 'ACTIVE'])
         ->andWhere(['<=', 'tuition_balance', 0])
@@ -1999,9 +1950,6 @@ public function actionBatchPrintReports($class_level, $term = 'TERM_1')
         )->bindValues([':sid' => $st->id, ':trm' => $term, ':yr' => $academicYear])->queryAll();
     }
 
-    // Class position (Primary only) — one query ranks the WHOLE class
-    // (regardless of tuition clearance, matching real academic standing),
-    // then each printed card just looks up its own student_id in the map.
     $classPositionMap = [];
     $classSize = null;
     if (strpos($class_level, 'Primary') !== false) {
@@ -2021,25 +1969,7 @@ public function actionBatchPrintReports($class_level, $term = 'TERM_1')
     ]);
 }
 
-/**
- * Ranks every Primary student in a class (not just cleared/printed ones)
- * by total marks across the 4 core PLE subjects. Returns [positionMap,
- * classSize] where positionMap is student_id => rank (1 = highest).
- *
- * This replaces the single-student computePrimaryClassRanking() you
- * already have from actionViewReportCard — swap that method's body to
- * just call this one and pluck out the single position, so both actions
- * share one ranking query instead of drifting apart:
- *
- *   private function computePrimaryClassRanking(int $schoolId, string $classLevel, string $term, int $academicYear, int $studentId): array
- *   {
- *       [$positionMap, $classSize] = $this->computePrimaryClassRankingMap($schoolId, $classLevel, $term, $academicYear);
- *       return [$positionMap[$studentId] ?? null, $classSize];
- *   }
- *
- * ADJUST: $primaryCoreSubjects to match your actual subject_name values
- * (same list used in computePrimaryClassRanking already).
- */
+//ranking
 private function computePrimaryClassRankingMap(int $schoolId, string $classLevel, string $term, int $academicYear): array
 {
     $primaryCoreSubjects = ['English', 'Mathematics', 'Science', 'Social Studies']; // ADJUST
@@ -2090,7 +2020,6 @@ private function computePrimaryClassRankingMap(int $schoolId, string $classLevel
         $schoolId = Yii::$app->user->identity->school_id;
         $academicYear = (int)date('Y');
 
-        // Fetch raw data tuples to convert directly into csv string elements
         $records = Yii::$app->db->createCommand(
             "SELECT s.name, s.payment_code, m.subject_name, m.bot_mark, m.mot_mark, m.eot_mark, m.teacher_comment
              FROM academic_marks m
@@ -2101,7 +2030,6 @@ private function computePrimaryClassRankingMap(int $schoolId, string $classLevel
 
         $fileName = str_replace(' ', '_', $class_level) . "_{$term}_Marks_Ledger.csv";
         
-        // Broadcast streaming down line variables straight to standard download headers
         Yii::$app->response->getHeaders()
             ->set('Content-Type', 'text/csv; charset=utf-8')
             ->set('Content-Disposition', "attachment; filename={$fileName}");
@@ -2142,8 +2070,6 @@ public function actionSettings()
             return $this->redirect(['site/settings']);
         }
 
-        // Uses $user's own class (already the loaded identity) instead of a hardcoded
-        // model name — avoids needing to know/import the exact class here.
         $usernameTaken = $user::find()
             ->where(['username' => $newUsername])
             ->andWhere(['!=', 'id', $user->id])
@@ -2159,7 +2085,7 @@ public function actionSettings()
         $uploadedFile = \yii\web\UploadedFile::getInstanceByName('profile_photo');
         if ($uploadedFile !== null) {
             $allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
-            $maxSizeBytes = 2 * 1024 * 1024; // 2MB cap — base64 already inflates size ~33%
+            $maxSizeBytes = 2 * 1024 * 1024; // 2MB cap 
 
             if (!in_array($uploadedFile->type, $allowedTypes, true)) {
                 Yii::$app->session->setFlash('error', 'Profile picture must be a JPG, PNG, or WEBP image.');
@@ -2184,7 +2110,7 @@ public function actionSettings()
         return $this->redirect(['site/settings']);
     }
 
-    // Read-only view of a teacher's assigned classes/subjects — they can see but not edit these here.
+    // Read-only view of a teacher's assigned classes/subjects 
     $assignments = [];
     if (($user->role ?? null) === 'TEACHER') {
         $assignments = \app\models\TeacherAssignment::find()
@@ -2365,7 +2291,6 @@ public function actionForcePosSync()
             Yii::$app->posGateway->sendForceSyncCommand($device->device_uid);
             $synced++;
         } catch (\Throwable $e) {
-            // log per-device failure, continue
         }
     }
 

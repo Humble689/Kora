@@ -151,26 +151,59 @@ $userSchoolId = Yii::$app->user->identity->school_id;
                         <?php endif; ?>
                     </div>
                     <div class="d-flex gap-4">
-                        <div class="flex-fill">
-                            <div class="text-muted small text-uppercase fw-semibold">Network Cleared</div>
-                            <div class="h4 fw-bold text-dark mb-0">UGX <?= number_format($stats['network_cleared'] ?? 0, 0) ?></div>
-                            <div class="text-muted small">Approved by MTN / Airtel / Gateway</div>
-                        </div>
+                       
                         <div class="vr"></div>
                         <div class="flex-fill">
-                            <div class="text-muted small text-uppercase fw-semibold">Bank Settled</div>
-                            <div class="h4 fw-bold text-dark mb-0">UGX <?= number_format($stats['bank_settled'] ?? 0, 0) ?></div>
-                            <div class="text-muted small">Confirmed in Stanbic/DFCU account</div>
+                           <div class="col-12 col-lg-6">
+    <!-- <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100"> -->
+        <!-- <div class="d-flex justify-content-between align-items-center mb-3"> -->
+            <h6 class="fw-bold text-dark mb-0"><i class="bi bi-arrow-left-right me-2 text-primary"></i>Settlement Reconciliation</h6>
+            <?php if (($stats['settlement_gap'] ?? 0) > 0): ?>
+                <span class="badge bg-warning-subtle text-warning-emphasis fw-semibold">Gap: UGX <?= number_format($stats['settlement_gap'], 0) ?></span>
+            <?php else: ?>
+                <span class="badge bg-success-subtle text-success fw-semibold">Fully Settled</span>
+            <?php endif; ?>
+        </div>
+        <p class="text-muted small mb-3">Mobile money, card, and online gateway payments only — cash and internal wallet transfers settle differently and aren't included here.</p>
+
+        <div class="d-flex gap-4 mb-3">
+            <div class="flex-fill">
+                <div class="text-muted small text-uppercase fw-semibold">Network Cleared</div>
+                <div class="h4 fw-bold text-dark mb-0">UGX <?= number_format($stats['network_cleared'] ?? 0, 0) ?></div>
+            </div>
+            <div class="vr"></div>
+            <div class="flex-fill">
+                <div class="text-muted small text-uppercase fw-semibold">Bank Settled</div>
+                <div class="h4 fw-bold text-dark mb-0">UGX <?= number_format($stats['bank_settled'] ?? 0, 0) ?></div>
+            </div>
+        </div>
+
+        <table class="table table-sm mb-0 small">
+            <thead class="text-muted text-uppercase"><tr><th>Channel</th><th class="text-end">Cleared</th><th class="text-end">Settled</th><th class="text-end">Gap</th></tr></thead>
+            <tbody>
+                <?php foreach ($reconciliationByChannel as $row):
+                    if (!in_array($row['payment_channel'], $settlementRelevantChannels)) continue;
+                    $gap = (float)$row['network_cleared'] - (float)$row['bank_settled'];
+                ?>
+                    <tr>
+                        <td><?= Html::encode($row['payment_channel']) ?></td>
+                        <td class="text-end">UGX <?= number_format((float)$row['network_cleared'], 0) ?></td>
+                        <td class="text-end">UGX <?= number_format((float)$row['bank_settled'], 0) ?></td>
+                        <td class="text-end <?= $gap > 0 ? 'text-warning fw-bold' : 'text-success' ?>">UGX <?= number_format($gap, 0) ?></td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    </div>
+<!-- </div> -->
                         </div>
                     </div>
-                    <?php $pct = ($stats['network_cleared'] ?? 0) > 0 ? min(100, (($stats['bank_settled'] ?? 0) / $stats['network_cleared']) * 100) : 100; ?>
-                    <div class="progress mt-3" style="height:6px;">
-                        <div class="progress-bar bg-success" style="width: <?= $pct ?>%"></div>
-                    </div>
+                    
+                    
                 </div>
             </div>
 
-            <div class="col-12 col-lg-6">
+            <div class="col-12 col-lg-6 d-flex left">
                 <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100">
                     <h6 class="fw-bold text-dark mb-3"><i class="bi bi-wallet2 me-2 text-success"></i>S-Wallet Float Monitor</h6>
                     <div class="d-flex gap-4">
