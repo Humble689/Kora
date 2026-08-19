@@ -38,7 +38,7 @@ class ExpenseClaims extends ActiveRecord
 
     public function getRequestedBy()
     {
-        return $this->hasOne(User::class, ['id' => 'requested_by']); // adjust to your actual user model class
+        return $this->hasOne(User::class, ['id' => 'requested_by']); 
     }
 
     public function getReviewedBy()
