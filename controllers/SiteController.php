@@ -355,6 +355,12 @@ $stats['settlement_gap'] = $stats['network_cleared'] - $stats['bank_settled'];
         ->asArray()
         ->all();
 
+$stats['total_approved_expenses'] = (float) ExpenseClaims::find()
+    ->where(['school_id' => $userSchoolId, 'status' => 'APPROVED'])
+    ->sum('amount');
+
+$stats['net_available_tuition'] = $stats['total_tuition'] - $stats['total_approved_expenses'];
+
     $defaulterHeatmap = Students::find()
     ->select(['class_level', 'total_outstanding' => 'SUM(tuition_balance)', 'defaulter_count' => 'COUNT(CASE WHEN tuition_balance > 0 THEN 1 END)'])
     ->where(['school_id' => $userSchoolId])
@@ -367,8 +373,13 @@ $stats['settlement_gap'] = $stats['network_cleared'] - $stats['bank_settled'];
     $collectionVelocity = $this->buildCollectionVelocitySeries($userSchoolId, $currentTermId);
 
     $txSearchKeyword = trim($request->get('tx_q', ''));
-    $txQuery = Transactions::find()->joinWith('student')->where(['students.school_id' => $userSchoolId]);
-
+$txQuery = Transactions::find()
+    ->joinWith('student')
+    ->where([
+        'or',
+        ['students.school_id' => $userSchoolId],
+        ['transactions.school_id' => $userSchoolId],
+    ]);
     if (!empty($txSearchKeyword)) {
         $txQuery->andWhere([
             'or',
@@ -2179,46 +2190,56 @@ public function actionWalletAdjust()
 }
 
 
-public function actionVoidTransaction($id)
+public function actionVoidTransaction()
 {
     if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
         throw new \yii\web\ForbiddenHttpException();
     }
 
-    $tx = Transactions::findOne($id);
-    if (!$tx || $tx->student->school_id != Yii::$app->user->identity->school_id) {
-        throw new \yii\web\NotFoundHttpException('Transaction not found.');
+    $id = Yii::$app->request->post('id');
+
+    if (empty($id)) {
+        Yii::$app->session->setFlash('error', 'No transaction selected — please use the void icon on a transaction row.');
+        return $this->redirect(['site/bursar']);
     }
 
-    if (Yii::$app->request->isPost) {
-        $reason = trim(Yii::$app->request->post('void_reason', ''));
-        if (empty($reason)) {
-            Yii::$app->session->setFlash('error', 'A reason is required to void a transaction.');
-            return $this->redirect(['site/bursar']);
+    $tx = Transactions::findOne($id);
+    if (!$tx || !$tx->student || $tx->student->school_id != Yii::$app->user->identity->school_id) {
+        Yii::$app->session->setFlash('error', 'Transaction not found.');
+        return $this->redirect(['site/bursar']);
+    }
+
+    if ($tx->status === 'VOIDED') {
+        Yii::$app->session->setFlash('error', 'This transaction has already been voided.');
+        return $this->redirect(['site/bursar']);
+    }
+
+    $reason = trim(Yii::$app->request->post('void_reason', ''));
+    if (empty($reason)) {
+        Yii::$app->session->setFlash('error', 'A reason is required to void a transaction.');
+        return $this->redirect(['site/bursar']);
+    }
+
+    $dbTransaction = Yii::$app->db->beginTransaction();
+    try {
+        if ($tx->transaction_type === 'TUITION') {
+            $tx->student->tuition_balance += $tx->amount;
+        } elseif ($tx->transaction_type === 'POCKET_MONEY') {
+            $tx->student->swallet_balance -= $tx->amount;
         }
+        $tx->student->save(false);
 
-        $dbTransaction = Yii::$app->db->beginTransaction();
-        try {
-            // Reverse the balance effect
-            if ($tx->transaction_type === 'TUITION') {
-                $tx->student->tuition_balance += $tx->amount;
-            } elseif ($tx->transaction_type === 'POCKET_MONEY') {
-                $tx->student->swallet_balance -= $tx->amount;
-            }
-            $tx->student->save(false);
+        $tx->status = 'VOIDED';
+        $tx->void_reason = $reason;
+        $tx->voided_by = Yii::$app->user->id;
+        $tx->voided_at = date('Y-m-d H:i:s');
+        $tx->save(false);
 
-            $tx->status = 'VOIDED';
-            $tx->void_reason = $reason;
-            $tx->voided_by = Yii::$app->user->id;
-            $tx->voided_at = date('Y-m-d H:i:s');
-            $tx->save(false);
-
-            $dbTransaction->commit();
-            Yii::$app->session->setFlash('success', 'Transaction voided and reversed.');
-        } catch (\Throwable $e) {
-            $dbTransaction->rollBack();
-            Yii::$app->session->setFlash('error', 'Void failed: ' . $e->getMessage());
-        }
+        $dbTransaction->commit();
+        Yii::$app->session->setFlash('success', 'Transaction voided and reversed.');
+    } catch (\Throwable $e) {
+        $dbTransaction->rollBack();
+        Yii::$app->session->setFlash('error', 'Void failed: ' . $e->getMessage());
     }
 
     return $this->redirect(['site/bursar']);
@@ -2321,15 +2342,36 @@ public function actionExpenseClaims()
 
     if (Yii::$app->request->isPost) {
         $claimId = Yii::$app->request->post('claim_id');
-        $decision = Yii::$app->request->post('decision'); // 'APPROVE' | 'REJECT'
+        $decision = Yii::$app->request->post('decision');
         $claim = ExpenseClaims::findOne(['id' => $claimId, 'school_id' => $schoolId]);
 
         if ($claim) {
-            $claim->status = $decision === 'APPROVE' ? 'APPROVED' : 'REJECTED';
-            $claim->reviewed_by = Yii::$app->user->id;
-            $claim->reviewed_at = date('Y-m-d H:i:s');
-            $claim->save(false);
-            Yii::$app->session->setFlash('success', 'Claim ' . strtolower($claim->status) . '.');
+            $dbTransaction = Yii::$app->db->beginTransaction();
+            try {
+                $claim->status = $decision === 'APPROVE' ? 'APPROVED' : 'REJECTED';
+                $claim->reviewed_by = Yii::$app->user->id;
+                $claim->reviewed_at = date('Y-m-d H:i:s');
+                $claim->save(false);
+
+                if ($decision === 'APPROVE') {
+                    $tx = new Transactions();
+                    $tx->student_id = null;
+                    $tx->school_id = $schoolId;
+                    $tx->transaction_type = 'EXPENSE';
+                    $tx->payment_channel = 'PETTY_CASH';
+                    $tx->amount = $claim->amount;
+                    $tx->external_reference = 'EXPENSE-' . $claim->id . ($claim->reference_number ? ' / ' . $claim->reference_number : '');                    $tx->status = 'SUCCESS';
+                    $tx->bank_settled = true; // cash paid out directly, nothing to settle
+                    $tx->created_by = Yii::$app->user->id;
+                    $tx->save(false);
+                }
+
+                $dbTransaction->commit();
+                Yii::$app->session->setFlash('success', 'Claim ' . strtolower($claim->status) . '.');
+            } catch (\Throwable $e) {
+                $dbTransaction->rollBack();
+                Yii::$app->session->setFlash('error', 'Could not process claim: ' . $e->getMessage());
+            }
         }
         return $this->redirect(['site/expense-claims']);
     }
@@ -2337,6 +2379,35 @@ public function actionExpenseClaims()
     return $this->render('expense-claims', ['pendingClaims' => $pendingClaims]);
 }
 
+
+public function actionExpenseClaimsCreate()
+{
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+        throw new \yii\web\ForbiddenHttpException();
+    }
+
+    if (Yii::$app->request->isPost) {
+        $schoolId = Yii::$app->user->identity->school_id;
+
+        $claim = new ExpenseClaims();
+        $claim->school_id = $schoolId;
+        $claim->category = Yii::$app->request->post('category');
+        $claim->description = Yii::$app->request->post('description');
+        $claim->amount = (float) Yii::$app->request->post('amount');
+        $claim->status = 'PENDING';
+        $claim->requested_by = Yii::$app->user->id;
+        $claim->created_at = date('Y-m-d H:i:s');
+        $claim->reference_number = trim(Yii::$app->request->post('reference_number', '')) ?: null;
+
+        if ($claim->save()) {
+            Yii::$app->session->setFlash('success', 'Expense claim submitted for review.');
+        } else {
+            Yii::$app->session->setFlash('error', 'Could not submit claim: ' . implode(' ', $claim->getFirstErrors()));
+        }
+    }
+
+    return $this->redirect(['site/expense-claims']);
+}
 
 public function actionStudentsByClass()
 {

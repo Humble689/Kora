@@ -7,6 +7,8 @@ declare(strict_types=1);
 /** @var array $channelBreakdown */
 /** @var array $defaulterHeatmap */
 /** @var array $collectionVelocity */
+/** @var array $reconciliationByChannel */
+/** @var array $settlementRelevantChannels */
 /** @var app\models\Transactions[] $recentTransactions */
 /** @var yii\data\Pagination $txPages */
 /** @var string $txSearchKeyword */
@@ -22,6 +24,7 @@ $this->title = 'KORA ERP Bursar Operations';
 $txBadgeMap = [
     'TUITION'       => 'text-primary',
     'POCKET_MONEY'  => 'text-success',
+    'EXPENSE' => 'text-danger',
 ];
 $txBadgeDefault = 'text-danger';
 
@@ -30,6 +33,18 @@ $pageStart  = $totalCount > 0 ? ($txPages->getOffset() + 1) : 0;
 $pageEnd    = min($txPages->getOffset() + $txPages->getLimit(), $totalCount);
 
 $userSchoolId = Yii::$app->user->identity->school_id;
+
+// Reconciliation chart data — one grouped bar per relevant channel,
+// Cleared vs Settled, replacing the old per-channel table.
+$reconciliationLabels = [];
+$reconciliationClearedValues = [];
+$reconciliationSettledValues = [];
+foreach ($reconciliationByChannel as $row) {
+    if (!in_array($row['payment_channel'], $settlementRelevantChannels)) continue;
+    $reconciliationLabels[] = $row['payment_channel'];
+    $reconciliationClearedValues[] = (float) $row['network_cleared'];
+    $reconciliationSettledValues[] = (float) $row['bank_settled'];
+}
 ?>
 
 <div class="site-bursar bg-light py-4 min-vh-100">
@@ -84,7 +99,7 @@ $userSchoolId = Yii::$app->user->identity->school_id;
             <button type="button" class="btn btn-outline-primary btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#batchInvoiceModal">
                 <i class="bi bi-receipt"></i> Batch Invoice Class
             </button>
-           
+
             <a href="<?= Url::toRoute(['site/expense-claims']) ?>" class="btn btn-outline-dark btn-sm fw-bold">
                 <i class="bi bi-clipboard-check-fill"></i> Approve Expense Claims
             </a>
@@ -97,19 +112,27 @@ $userSchoolId = Yii::$app->user->identity->school_id;
 
         <!-- Stat cards -->
         <div class="row g-3 mb-4">
-            <div class="col-12 col-md-4">
-                <div class="card border-0 shadow-sm rounded-3 p-4 bg-white border-start border-4 border-primary h-100">
-                    <div class="d-flex justify-content-between align-items-start">
-                        <div>
-                            <div class="text-muted small fw-semibold text-uppercase mb-1" style="letter-spacing:.04em;">Total Tuition Collected</div>
-                            <div class="h3 fw-bold text-dark mb-0">UGX <?= number_format($stats['total_tuition'], 0) ?></div>
-                        </div>
-                        <span class="rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center flex-shrink-0" style="width:44px;height:44px;">
-                            <i class="bi bi-cash-coin fs-5"></i>
-                        </span>
-                    </div>
+           <div class="col-12 col-md-4">
+    <div class="card border-0 shadow-sm rounded-3 p-4 bg-white border-start border-4 border-primary h-100">
+        <div class="d-flex justify-content-between align-items-start">
+            <div>
+                <div class="text-muted small fw-semibold text-uppercase mb-1" style="letter-spacing:.04em;">Total Tuition Collected</div>
+                <div class="h3 fw-bold text-dark mb-0">UGX <?= number_format($stats['total_tuition'], 0) ?></div>
+                <div class="text-muted small mt-1">
+                    Net available: <span class="fw-semibold <?= $stats['net_available_tuition'] < 0 ? 'text-danger' : 'text-success' ?>">
+                        UGX <?= number_format($stats['net_available_tuition'], 0) ?>
+                    </span>
+                    <?php if ($stats['total_approved_expenses'] > 0): ?>
+                        <span class="text-muted">(after UGX <?= number_format($stats['total_approved_expenses'], 0) ?> approved expenses)</span>
+                    <?php endif; ?>
                 </div>
             </div>
+            <span class="rounded-circle bg-primary-subtle text-primary d-flex align-items-center justify-content-center flex-shrink-0" style="width:44px;height:44px;">
+                <i class="bi bi-cash-coin fs-5"></i>
+            </span>
+        </div>
+    </div>
+</div>
             <div class="col-12 col-md-4">
                 <div class="card border-0 shadow-sm rounded-3 p-4 bg-white border-start border-4 border-danger h-100">
                     <div class="d-flex justify-content-between align-items-start">
@@ -142,7 +165,7 @@ $userSchoolId = Yii::$app->user->identity->school_id;
         <div class="row g-3 mb-4">
             <div class="col-12 col-lg-6">
                 <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100">
-                    <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
                         <h6 class="fw-bold text-dark mb-0"><i class="bi bi-arrow-left-right me-2 text-primary"></i>Settlement Reconciliation</h6>
                         <?php if (($stats['settlement_gap'] ?? 0) > 0): ?>
                             <span class="badge bg-warning-subtle text-warning-emphasis fw-semibold">Gap: UGX <?= number_format($stats['settlement_gap'], 0) ?></span>
@@ -150,61 +173,32 @@ $userSchoolId = Yii::$app->user->identity->school_id;
                             <span class="badge bg-success-subtle text-success fw-semibold">Fully Settled</span>
                         <?php endif; ?>
                     </div>
-                    <div class="d-flex gap-4">
-                       
+                    <p class="text-muted small mb-3">Mobile money, card, and online gateway payments only — cash and internal wallet transfers settle differently and aren't included here.</p>
+
+                    <div class="d-flex gap-4 mb-3">
+                        <div class="flex-fill">
+                            <div class="text-muted small text-uppercase fw-semibold">Network Cleared</div>
+                            <div class="h4 fw-bold text-dark mb-0">UGX <?= number_format($stats['network_cleared'] ?? 0, 0) ?></div>
+                        </div>
                         <div class="vr"></div>
                         <div class="flex-fill">
-                           <div class="col-12 col-lg-6">
-    <!-- <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100"> -->
-        <!-- <div class="d-flex justify-content-between align-items-center mb-3"> -->
-            <h6 class="fw-bold text-dark mb-0"><i class="bi bi-arrow-left-right me-2 text-primary"></i>Settlement Reconciliation</h6>
-            <?php if (($stats['settlement_gap'] ?? 0) > 0): ?>
-                <span class="badge bg-warning-subtle text-warning-emphasis fw-semibold">Gap: UGX <?= number_format($stats['settlement_gap'], 0) ?></span>
-            <?php else: ?>
-                <span class="badge bg-success-subtle text-success fw-semibold">Fully Settled</span>
-            <?php endif; ?>
-        </div>
-        <p class="text-muted small mb-3">Mobile money, card, and online gateway payments only — cash and internal wallet transfers settle differently and aren't included here.</p>
-
-        <div class="d-flex gap-4 mb-3">
-            <div class="flex-fill">
-                <div class="text-muted small text-uppercase fw-semibold">Network Cleared</div>
-                <div class="h4 fw-bold text-dark mb-0">UGX <?= number_format($stats['network_cleared'] ?? 0, 0) ?></div>
-            </div>
-            <div class="vr"></div>
-            <div class="flex-fill">
-                <div class="text-muted small text-uppercase fw-semibold">Bank Settled</div>
-                <div class="h4 fw-bold text-dark mb-0">UGX <?= number_format($stats['bank_settled'] ?? 0, 0) ?></div>
-            </div>
-        </div>
-
-        <table class="table table-sm mb-0 small">
-            <thead class="text-muted text-uppercase"><tr><th>Channel</th><th class="text-end">Cleared</th><th class="text-end">Settled</th><th class="text-end">Gap</th></tr></thead>
-            <tbody>
-                <?php foreach ($reconciliationByChannel as $row):
-                    if (!in_array($row['payment_channel'], $settlementRelevantChannels)) continue;
-                    $gap = (float)$row['network_cleared'] - (float)$row['bank_settled'];
-                ?>
-                    <tr>
-                        <td><?= Html::encode($row['payment_channel']) ?></td>
-                        <td class="text-end">UGX <?= number_format((float)$row['network_cleared'], 0) ?></td>
-                        <td class="text-end">UGX <?= number_format((float)$row['bank_settled'], 0) ?></td>
-                        <td class="text-end <?= $gap > 0 ? 'text-warning fw-bold' : 'text-success' ?>">UGX <?= number_format($gap, 0) ?></td>
-                    </tr>
-                <?php endforeach; ?>
-            </tbody>
-        </table>
-    </div>
-<!-- </div> -->
+                            <div class="text-muted small text-uppercase fw-semibold">Bank Settled</div>
+                            <div class="h4 fw-bold text-dark mb-0">UGX <?= number_format($stats['bank_settled'] ?? 0, 0) ?></div>
                         </div>
                     </div>
-                    
-                    
+
+                    <?php if (empty($reconciliationLabels)): ?>
+                        <div class="text-muted small fst-italic text-center py-4">No channel-level reconciliation data available.</div>
+                    <?php else: ?>
+                        <div style="position: relative; height: 190px;">
+                            <canvas id="reconciliationChart"></canvas>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
 
-            <div class="col-12 col-lg-6 d-flex left">
-                <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100">
+            <div class="col-12 col-lg-6 d-flex">
+                <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100 w-100">
                     <h6 class="fw-bold text-dark mb-3"><i class="bi bi-wallet2 me-2 text-success"></i>S-Wallet Float Monitor</h6>
                     <div class="d-flex gap-4">
                         <div class="flex-fill">
@@ -234,37 +228,30 @@ $userSchoolId = Yii::$app->user->identity->school_id;
             <div class="col-12 col-lg-7">
                 <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100">
                     <h6 class="fw-bold text-dark mb-3"><i class="bi bi-grid-3x3-gap-fill me-2 text-danger"></i>Defaulter Heatmap by Class</h6>
-                    <div class="table-responsive">
-                        <table class="table table-sm mb-0">
-                            <thead class="text-muted text-uppercase small">
-                                <tr><th>Class</th><th class="text-end">Defaulters</th><th class="text-end">Outstanding</th><th></th></tr>
-                            </thead>
-                            <tbody>
-                                <?php if (empty($defaulterHeatmap)): ?>
-                                    <tr><td colspan="4" class="text-center text-muted py-3">No class-level data available.</td></tr>
-                                <?php else: ?>
-                                    <?php
-                                    $maxOutstanding = max(array_column($defaulterHeatmap, 'total_outstanding') ?: [1]);
-                                    if ($maxOutstanding <= 0) $maxOutstanding = 1;
-                                    foreach ($defaulterHeatmap as $row):
-                                        $intensity = min(1, ((float)$row['total_outstanding']) / $maxOutstanding);
-                                        $bg = 'rgba(220,53,69,' . round(0.12 + $intensity * 0.5, 2) . ')';
-                                    ?>
-                                        <tr style="background-color: <?= $bg ?>;">
-                                            <td class="fw-semibold"><?= Html::encode($row['class_level']) ?></td>
-                                            <td class="text-end"><?= (int)$row['defaulter_count'] ?></td>
-                                            <td class="text-end fw-bold">UGX <?= number_format((float)$row['total_outstanding'], 0) ?></td>
-                                            <td style="width:80px;">
-                                                <div class="progress" style="height:6px;">
-                                                    <div class="progress-bar bg-danger" style="width: <?= round($intensity * 100) ?>%"></div>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
+                    <?php if (empty($defaulterHeatmap)): ?>
+                        <div class="text-muted small fst-italic text-center py-4">No class-level data available.</div>
+                    <?php else: ?>
+                        <?php
+                        $maxOutstanding = max(array_column($defaulterHeatmap, 'total_outstanding') ?: [1]);
+                        if ($maxOutstanding <= 0) $maxOutstanding = 1;
+                        ?>
+                        <div class="row g-2">
+                            <?php foreach ($defaulterHeatmap as $row):
+                                $intensity = min(1, ((float)$row['total_outstanding']) / $maxOutstanding);
+                                $bg = sprintf('rgba(220, 53, 69, %.2f)', 0.12 + ($intensity * 0.78));
+                                $textClass = $intensity > 0.45 ? 'text-white' : 'text-dark';
+                            ?>
+                                <div class="col-6 col-md-4 col-lg-3">
+                                    <div class="rounded-3 p-2 text-center h-100 <?= $textClass ?>" style="background-color: <?= $bg ?>;">
+                                        <div class="small fw-semibold text-truncate" style="font-size: 0.72rem;"><?= Html::encode($row['class_level']) ?></div>
+                                        <div class="fw-bold" style="font-size: 0.85rem;">UGX <?= number_format((float)$row['total_outstanding'], 0) ?></div>
+                                        <div class="small" style="font-size: 0.68rem; opacity: 0.85;"><?= (int)$row['defaulter_count'] ?> defaulter<?= (int)$row['defaulter_count'] === 1 ? '' : 's' ?></div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                        <div class="small text-muted mt-2">Darker tiles indicate a higher concentration of outstanding fees within that class.</div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -336,8 +323,14 @@ $userSchoolId = Yii::$app->user->identity->school_id;
 
                                     <td class="ps-4 text-muted"><?= date('Y-m-d H:i', strtotime($tx->created_at)) ?></td>
 
-                                    <td class="fw-bold text-dark">
-                                        <?= $tx->student ? Html::encode($tx->student->name) : '<span class="text-muted fst-italic">Unknown Record</span>' ?>
+                                   <td class="fw-bold text-dark">
+                                        <?php if ($tx->transaction_type === 'EXPENSE'): ?>
+                                            <span class="text-muted fst-italic"><i class="bi bi-receipt me-1"></i>Petty Cash / Dept. Expense</span>
+                                        <?php elseif ($tx->student): ?>
+                                            <?= Html::encode($tx->student->name) ?>
+                                        <?php else: ?>
+                                            <span class="text-muted fst-italic">Unknown Record</span>
+                                        <?php endif; ?>
                                     </td>
 
                                     <td>
@@ -362,7 +355,16 @@ $userSchoolId = Yii::$app->user->identity->school_id;
                                         <a href="<?= Url::toRoute(['site/print-receipt', 'id' => $tx->id]) ?>" target="_blank" class="btn btn-sm btn-light border ms-2" title="Print Receipt">
                                             <i class="bi bi-printer-fill"></i>
                                         </a>
+                                        <?php if (($tx->status ?? null) !== 'VOIDED'): ?>
+                                            <button type="button" class="btn btn-sm btn-light border ms-1 kora-void-trigger" title="Void / Reverse This Transaction"
+                                                    data-bs-toggle="modal" data-bs-target="#voidModal"
+                                                    data-tx-id="<?= (int)$tx->id ?>"
+                                                    data-tx-label="<?= Html::encode(($tx->student->name ?? 'Unknown') . ' — ' . $tx->transaction_type . ' — UGX ' . number_format((float)$tx->amount, 0) . ' (' . date('Y-m-d', strtotime($tx->created_at)) . ')') ?>">
+                                                <i class="bi bi-x-octagon text-danger"></i>
+                                            </button>
+                                        <?php endif; ?>
                                     </td>
+                                    
                                 </tr>
                             <?php endforeach; ?>
                         <?php endif; ?>
@@ -391,30 +393,30 @@ $userSchoolId = Yii::$app->user->identity->school_id;
 <!-- ===================== MODALS ===================== -->
 
 <!-- Wallet Modal -->
-<div class="modal fade" id="walletModal" tabindex="-1">
+<div class="modal fade kora-modal" id="walletModal" tabindex="-1">
     <div class="modal-dialog">
         <?= Html::beginForm(['site/wallet-adjust'], 'post') ?>
-        <div class="modal-content rounded-3">
+        <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title fw-bold">Wallet Top-Up / Freeze</h5>
+                <h5 class="modal-title"><i class="bi bi-wallet-fill"></i> Wallet Top-Up / Freeze</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label class="form-label small fw-semibold">Step 1 — Class</label>
+                    <label class="form-label">Step 1 — Class</label>
                     <select id="walletClassSelect" class="form-select" required>
                         <option value="">Select class...</option>
                     </select>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label small fw-semibold">Step 2 — Student</label>
+                    <label class="form-label">Step 2 — Student</label>
                     <select name="student_id" id="walletStudentSelect" class="form-select" required disabled>
                         <option value="">Select a class first...</option>
                     </select>
                     <div class="form-text">Search by name — payment code shown to tell same-name students apart.</div>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label small fw-semibold">Action</label>
+                    <label class="form-label">Action</label>
                     <select name="wallet_action" class="form-select" id="walletActionSelect" required>
                         <option value="TOPUP">Top-Up</option>
                         <option value="FREEZE">Freeze Wallet</option>
@@ -422,13 +424,13 @@ $userSchoolId = Yii::$app->user->identity->school_id;
                     </select>
                 </div>
                 <div class="mb-3" id="topupAmountField">
-                    <label class="form-label small fw-semibold">Amount (UGX)</label>
+                    <label class="form-label">Amount (UGX)</label>
                     <input type="number" name="amount" class="form-control" min="0" step="500">
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-success fw-bold">Confirm</button>
+                <button type="button" class="btn kora-btn-cancel" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn kora-btn-confirm kora-btn-success">Confirm</button>
             </div>
         </div>
         <?= Html::endForm() ?>
@@ -436,11 +438,11 @@ $userSchoolId = Yii::$app->user->identity->school_id;
 </div>
 
 <!-- Void/Reversal Modal -->
-<div class="modal fade" id="voidModal" tabindex="-1">
+<div class="modal fade kora-modal" id="voidModal" tabindex="-1">
     <div class="modal-dialog">
         <?= Html::beginForm(['site/void-transaction'], 'post') ?>
         <div class="modal-content rounded-3">
-            <div class="modal-header">
+            <div class="modal-header kora-modal-header-danger">
                 <h5 class="modal-title fw-bold">Void / Reverse Transaction</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
@@ -452,12 +454,12 @@ $userSchoolId = Yii::$app->user->identity->school_id;
                 </div>
                 <div class="mb-3">
                     <label class="form-label small fw-semibold">Reason (required — audit log)</label>
-                    <textarea name="void_reason" class="form-control" rows="3" placeholder="e.g. Parent disputes MTN MoMo charge, network double-debit" required></textarea>
+                    <textarea name="void_reason" class="form-control" rows="3" required></textarea>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-danger fw-bold">Void &amp; Reverse</button>
+                <button type="button" class="btn kora-btn-cancel" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn kora-btn-confirm kora-btn-danger">Void &amp; Reverse</button>
             </div>
         </div>
         <?= Html::endForm() ?>
@@ -465,24 +467,24 @@ $userSchoolId = Yii::$app->user->identity->school_id;
 </div>
 
 <!-- Batch Invoice Modal -->
-<div class="modal fade" id="batchInvoiceModal" tabindex="-1">
-    <div class="modal-dialog bg-white">
+<div class="modal fade kora-modal" id="batchInvoiceModal" tabindex="-1">
+    <div class="modal-dialog">
         <?= Html::beginForm(['site/batch-invoice'], 'post') ?>
-        <div class="modal-content rounded-3">
+        <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title fw-bold">Batch Invoice &amp; Waiver</h5>
+                <h5 class="modal-title"><i class="bi bi-receipt"></i> Batch Invoice &amp; Waiver</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label class="form-label small fw-semibold">Class</label>
+                    <label class="form-label">Class</label>
                     <select name="class_level" id="batchClassSelect" class="form-select" required>
                         <option value="">Select class...</option>
                     </select>
                     <div class="form-text" id="batchClassCount"></div>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label small fw-semibold">Base Fee (UGX)</label>
+                    <label class="form-label">Base Fee (UGX)</label>
                     <input type="number" name="base_fee" class="form-control" min="0" step="1000" required>
                 </div>
                 <div class="form-check mb-2">
@@ -499,21 +501,158 @@ $userSchoolId = Yii::$app->user->identity->school_id;
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-primary fw-bold" id="batchInvoiceSubmit" disabled>Generate Invoices</button>
+                <button type="button" class="btn kora-btn-cancel" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn kora-btn-confirm kora-btn-primary" id="batchInvoiceSubmit" disabled>Generate Invoices</button>
             </div>
         </div>
         <?= Html::endForm() ?>
     </div>
 </div>
 
+<style>
+    :root {
+        --kora-blue-900: #0b2a52;
+        --kora-blue-800: #0f3a70;
+        --kora-blue-700: #14488a;
+        --kora-blue-accent: #3b82f6;
+        --kora-blue-soft: rgba(59, 130, 246, 0.1);
+        --kora-border: #e7ecf3;
+    }
+
+    .kora-modal .modal-content {
+        border: none;
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: 0 20px 45px rgba(11, 42, 82, 0.25);
+    }
+
+    .kora-modal .modal-header {
+        background: linear-gradient(135deg, var(--kora-blue-800), var(--kora-blue-700));
+        color: #fff;
+        border: none;
+        padding: 1.1rem 1.4rem;
+    }
+
+    .kora-modal .modal-header.kora-modal-header-danger {
+        background: linear-gradient(135deg, #b02a37, #dc3545);
+    }
+
+    .kora-modal .modal-title {
+        font-weight: 700;
+        font-size: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .kora-modal .btn-close {
+        filter: invert(1) grayscale(100%) brightness(200%);
+        opacity: 0.85;
+    }
+
+    .kora-modal .modal-body {
+        padding: 1.4rem;
+        background: #fff;
+    }
+
+    .kora-modal .form-label {
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: #64748b;
+    }
+
+    .kora-modal .form-control,
+    .kora-modal .form-select,
+    .kora-modal textarea.form-control {
+        border: 1px solid var(--kora-border);
+        border-radius: 8px;
+    }
+
+    .kora-modal .form-control:focus,
+    .kora-modal .form-select:focus {
+        border-color: var(--kora-blue-accent);
+        box-shadow: 0 0 0 0.2rem var(--kora-blue-soft);
+    }
+
+    .kora-modal .form-text {
+        font-size: 0.75rem;
+    }
+
+    .kora-modal .modal-footer {
+        border-top: 1px solid var(--kora-border);
+        background: #fafbfd;
+        padding: 1rem 1.4rem;
+    }
+
+    .kora-modal .kora-btn-cancel {
+        border-radius: 50px;
+        font-weight: 700;
+        background: #fff;
+        border: 1px solid var(--kora-border);
+        color: #64748b;
+        padding: 0.5rem 1.15rem;
+    }
+
+    .kora-modal .kora-btn-cancel:hover {
+        background: #f4f7fb;
+    }
+
+    .kora-modal .kora-btn-confirm {
+        border-radius: 50px;
+        font-weight: 700;
+        border: none;
+        padding: 0.5rem 1.25rem;
+        color: #fff;
+    }
+
+    .kora-modal .kora-btn-confirm:disabled {
+        opacity: 0.5;
+    }
+
+    .kora-modal .kora-btn-success { background: #198754; }
+    .kora-modal .kora-btn-success:hover { background: #157347; color: #fff; }
+
+    .kora-modal .kora-btn-danger { background: #dc3545; }
+    .kora-modal .kora-btn-danger:hover { background: #bb2d3b; color: #fff; }
+
+    .kora-modal .kora-btn-primary { background: var(--kora-blue-accent); }
+    .kora-modal .kora-btn-primary:hover { background: #2563eb; color: #fff; }
+
+    .kora-modal .alert {
+        border-radius: 8px;
+        font-size: 0.82rem;
+    }
+</style>
+
 <script>
 document.addEventListener('DOMContentLoaded', function () {
+   
+    document.querySelectorAll('.kora-modal').forEach(function (modalEl) {
+        document.body.appendChild(modalEl);
+    });
+
     const walletSelect = document.getElementById('walletActionSelect');
     const topupField = document.getElementById('topupAmountField');
     if (walletSelect && topupField) {
         walletSelect.addEventListener('change', function () {
             topupField.style.display = this.value === 'TOPUP' ? 'block' : 'none';
+        });
+    }
+
+    document.querySelectorAll('.kora-void-trigger').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            document.getElementById('voidTxId').value = this.dataset.txId;
+            document.getElementById('voidTxLabel').value = this.dataset.txLabel;
+        });
+    });
+
+    const voidModalEl = document.getElementById('voidModal');
+    if (voidModalEl) {
+        voidModalEl.addEventListener('hidden.bs.modal', function () {
+            document.getElementById('voidTxId').value = '';
+            document.getElementById('voidTxLabel').value = '';
         });
     }
 });
@@ -524,6 +663,9 @@ $channelLabels = json_encode(array_column($channelBreakdown, 'payment_channel'))
 $channelValues = json_encode(array_map('floatval', array_column($channelBreakdown, 'total')));
 $velocityCurrent = json_encode($collectionVelocity['current'] ?? []);
 $velocityPrevious = json_encode($collectionVelocity['previous'] ?? []);
+$reconciliationChartLabels = json_encode($reconciliationLabels);
+$reconciliationChartCleared = json_encode($reconciliationClearedValues);
+$reconciliationChartSettled = json_encode($reconciliationSettledValues);
 
 $this->registerJsFile('https://cdn.jsdelivr.net/npm/chart.js@4', ['position' => \yii\web\View::POS_END]);
 $this->registerJs(<<<JS
@@ -540,6 +682,25 @@ $this->registerJs(<<<JS
                     }]
                 },
                 options: { plugins: { legend: { position: 'bottom' } } }
+            });
+        }
+
+        const reconciliationCanvas = document.getElementById('reconciliationChart');
+        if (reconciliationCanvas) {
+            new Chart(reconciliationCanvas, {
+                type: 'bar',
+                data: {
+                    labels: {$reconciliationChartLabels},
+                    datasets: [
+                        { label: 'Cleared', data: {$reconciliationChartCleared}, backgroundColor: '#3b82f6', borderRadius: 4 },
+                        { label: 'Settled', data: {$reconciliationChartSettled}, backgroundColor: '#198754', borderRadius: 4 }
+                    ]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
+                    scales: { y: { beginAtZero: true, ticks: { callback: v => (v / 1000) + 'k' } } }
+                }
             });
         }
 
@@ -678,4 +839,3 @@ $this->registerJs(<<<JS
 JS
 , \yii\web\View::POS_END);
 ?>
-

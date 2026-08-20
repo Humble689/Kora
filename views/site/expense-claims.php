@@ -100,6 +100,7 @@ $categoryBadgeDefault = 'bg-light text-dark';
                             <th>Category</th>
                             <th>Description</th>
                             <th class="text-end">Amount</th>
+                            <th>Reference</th>
                             <th class="text-center pe-3">Action</th>
                         </tr>
                     </thead>
@@ -117,7 +118,7 @@ $categoryBadgeDefault = 'bg-light text-dark';
                                 <tr>
                                     <td class="ps-3 text-muted fw-semibold"><?= $i + 1 ?></td>
                                     <td class="text-muted"><?= date('Y-m-d H:i', strtotime($claim->created_at)) ?></td>
-                                    <td class="fw-bold text-dark"><?= Html::encode($claim->requestedBy->name ?? 'Unknown') ?></td>
+                                    <td class="fw-bold text-dark"><?= Html::encode($claim->requested_by->name ?? 'Unknown') ?></td>
                                     <td>
                                         <span class="badge rounded-pill px-3 py-2 fw-semibold <?= $badgeClass ?>">
                                             <?= Html::encode($claim->category) ?>
@@ -125,6 +126,7 @@ $categoryBadgeDefault = 'bg-light text-dark';
                                     </td>
                                     <td class="text-secondary"><?= Html::encode($claim->description) ?></td>
                                     <td class="fw-bold text-dark text-end">UGX <?= number_format((float)$claim->amount, 0) ?></td>
+                                    <td class="text-muted font-monospace small"><?= $claim->reference_number ? Html::encode($claim->reference_number) : '—' ?></td>
                                     <td class="text-center pe-3">
                                         <div class="d-flex gap-1 justify-content-center">
                                             <?= Html::beginForm(['site/expense-claims'], 'post', ['class' => 'd-inline']) ?>
@@ -154,17 +156,17 @@ $categoryBadgeDefault = 'bg-light text-dark';
 </div>
 
 <!-- New Claim Modal -->
-<div class="modal fade" id="newClaimModal" tabindex="-1">
+<div class="modal fade kora-modal" id="newClaimModal" tabindex="-1">
     <div class="modal-dialog">
         <?= Html::beginForm(['site/expense-claims-create'], 'post') ?>
-        <div class="modal-content rounded-3">
+        <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title fw-bold">New Expense Claim</h5>
+                <h5 class="modal-title"><i class="bi bi-plus-circle-fill"></i> New Expense Claim</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body bg-primary">
+            <div class="modal-body">
                 <div class="mb-3">
-                    <label class="form-label small fw-semibold">Category</label>
+                    <label class="form-label">Category</label>
                     <select name="category" class="form-select" required>
                         <option value="FUEL">Fuel</option>
                         <option value="STATIONERY">Stationery / Chalk / Supplies</option>
@@ -174,19 +176,128 @@ $categoryBadgeDefault = 'bg-light text-dark';
                     </select>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label small fw-semibold">Description</label>
+                    <label class="form-label">Description</label>
                     <textarea name="description" class="form-control" rows="2" placeholder="e.g. 20L diesel for school van, term 2" required></textarea>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label small fw-semibold">Amount (UGX)</label>
+                    <label class="form-label">Amount (UGX)</label>
                     <input type="" name="amount" class="form-control" min="0" step="500" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label">Requested by</label>
+                    <input type="text" name="text" class="form-control" >
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
-                <button type="submit" class="btn btn-primary fw-bold">Submit Claim</button>
+                <button type="button" class="btn kora-btn-cancel" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn kora-btn-confirm kora-btn-primary">Submit Claim</button>
             </div>
         </div>
         <?= Html::endForm() ?>
     </div>
 </div>
+
+<style>
+    :root {
+        --kora-blue-900: #0b2a52;
+        --kora-blue-800: #0f3a70;
+        --kora-blue-700: #14488a;
+        --kora-blue-accent: #3b82f6;
+        --kora-blue-soft: rgba(59, 130, 246, 0.1);
+        --kora-border: #e7ecf3;
+    }
+
+    .kora-modal .modal-content {
+        border: none;
+        border-radius: 14px;
+        overflow: hidden;
+        box-shadow: 0 20px 45px rgba(11, 42, 82, 0.25);
+    }
+
+    .kora-modal .modal-header {
+        background: linear-gradient(135deg, var(--kora-blue-800), var(--kora-blue-700));
+        color: #fff;
+        border: none;
+        padding: 1.1rem 1.4rem;
+    }
+
+    .kora-modal .modal-title {
+        font-weight: 700;
+        font-size: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .kora-modal .btn-close {
+        filter: invert(1) grayscale(100%) brightness(200%);
+        opacity: 0.85;
+    }
+
+    .kora-modal .modal-body {
+        padding: 1.4rem;
+        background: #fff;
+    }
+
+    .kora-modal .form-label {
+        font-size: 0.78rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        color: #64748b;
+    }
+
+    .kora-modal .form-control,
+    .kora-modal .form-select,
+    .kora-modal textarea.form-control {
+        border: 1px solid var(--kora-border);
+        border-radius: 8px;
+    }
+
+    .kora-modal .form-control:focus,
+    .kora-modal .form-select:focus {
+        border-color: var(--kora-blue-accent);
+        box-shadow: 0 0 0 0.2rem var(--kora-blue-soft);
+    }
+
+    .kora-modal .modal-footer {
+        border-top: 1px solid var(--kora-border);
+        background: #fafbfd;
+        padding: 1rem 1.4rem;
+    }
+
+    .kora-modal .kora-btn-cancel {
+        border-radius: 50px;
+        font-weight: 700;
+        background: #fff;
+        border: 1px solid var(--kora-border);
+        color: #64748b;
+        padding: 0.5rem 1.15rem;
+    }
+
+    .kora-modal .kora-btn-cancel:hover {
+        background: #f4f7fb;
+    }
+
+    .kora-modal .kora-btn-confirm {
+        border-radius: 50px;
+        font-weight: 700;
+        border: none;
+        padding: 0.5rem 1.25rem;
+        color: #fff;
+    }
+
+    .kora-modal .kora-btn-primary { background: var(--kora-blue-accent); }
+    .kora-modal .kora-btn-primary:hover { background: #2563eb; color: #fff; }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // Same fix as the bursar dashboard's modals — the sidebar layout wrapper
+    // creates a stacking context that traps the modal behind the fixed top
+    // navbar. Moving the modal to be a direct child of <body> escapes it.
+    document.querySelectorAll('.kora-modal').forEach(function (modalEl) {
+        document.body.appendChild(modalEl);
+    });
+});
+</script>

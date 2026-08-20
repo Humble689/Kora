@@ -24,17 +24,18 @@ class ExpenseClaims extends ActiveRecord
         return 'expense_claims';
     }
 
-    public function rules()
-    {
-        return [
-            [['school_id', 'category', 'description', 'amount'], 'required'],
-            [['school_id', 'requested_by', 'reviewed_by'], 'integer'],
-            [['description'], 'string'],
-            [['amount'], 'number'],
-            [['category', 'status'], 'string', 'max' => 30],
-            [['reviewed_at', 'created_at'], 'safe'],
-        ];
-    }
+  public function rules()
+{
+    return [
+        [['school_id', 'category', 'description', 'amount'], 'required'],
+        [['school_id', 'requested_by', 'reviewed_by'], 'integer'],
+        [['description'], 'string'],
+        [['amount'], 'number'],
+        [['category', 'status'], 'string', 'max' => 30],
+        [['reference_number'], 'string', 'max' => 100],
+        [['reviewed_at', 'created_at'], 'safe'],
+    ];
+}
 
     public function getRequestedBy()
     {
