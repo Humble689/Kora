@@ -12,7 +12,7 @@ $school = $tx->student->school ?? null;
 <html>
 <head>
     <meta charset="utf-8">
-    <title>Receipt — <?= Html::encode($tx->external_reference) ?></title>
+    <title>Receipt <?= Html::encode($tx->external_reference) ?></title>
     <style>
         @media print {
             @page { size: 80mm auto; margin: 0; }

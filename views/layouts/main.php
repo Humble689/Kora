@@ -191,6 +191,7 @@ $currentRoute = Yii::$app->controller->id . '/' . Yii::$app->controller->action-
             padding-top: 1.5rem;
             position: relative;
             z-index: 1;
+            transition: margin-left 0.3s ease, width 0.3s ease;
         }
         .sidebar-heading {
             font-size: 0.75rem;
@@ -218,6 +219,71 @@ $currentRoute = Yii::$app->controller->id . '/' . Yii::$app->controller->action-
         .workspace-content > .alert {
             border-radius: 0.85rem;
         }
+
+        /* ===== Responsive sidebar (tablet & phone) ===== */
+        .sidebar-toggle-btn {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 0.6rem;
+            background: var(--theme-primary) !important;
+            color: #fff !important;
+            font-size: 1.1rem;
+            position: fixed;
+            top: 66px;
+            left: 14px;
+            z-index: 200;
+            box-shadow: 0 6px 16px rgba(16, 33, 58, 0.18);
+        }
+        .sidebar-toggle-btn:hover {
+            background: var(--theme-primary-hover) !important;
+        }
+
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            top: 56px;
+            background: rgba(11, 20, 38, 0.45);
+            z-index: 150;
+            opacity: 0;
+            transition: opacity 0.25s ease;
+        }
+        .sidebar-overlay.show {
+            display: block;
+            opacity: 1;
+        }
+
+        @media (max-width: 991.98px) {
+            .sidebar-toggle-btn {
+                display: inline-flex;
+            }
+
+            .sidebar-panel.side {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                box-shadow: 4px 0 20px rgba(0, 0, 0, 0.25);
+            }
+            .sidebar-panel.side.show {
+                transform: translateX(0);
+            }
+
+            .workspace-content {
+                margin-left: 0 !important;
+                width: 100% !important;
+                padding-top: 4rem;
+            }
+        }
+
+        @media (max-width: 575.98px) {
+            .sidebar-panel.side {
+                width: 82vw;
+                max-width: 300px;
+            }
+        }
     </style>
     <?php endif; ?>
 </head>
@@ -234,9 +300,17 @@ if (!in_array($currentRoute, ['site/index', 'site/login'], true)):
     
     <?php if (!$isGuest && $currentRoute !== 'site/index'): ?>
         <div class="d-flex w-100">
-            
+
+            <!-- Mobile / tablet sidebar toggle -->
+            <button type="button" class="sidebar-toggle-btn" id="sidebarToggleBtn" aria-label="Toggle navigation" aria-controls="koraSidebar" aria-expanded="false">
+                <i class="bi bi-list"></i>
+            </button>
+
+            <!-- Backdrop shown behind the sidebar on small screens -->
+            <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
             <!-- Left Fixed Navigation Panel -->
-        <div class="sidebar-panel side">
+        <div class="sidebar-panel side" id="koraSidebar">
                 <div class="sidebar-brand-block px-3 pt-2 pb-3">
                     <div class="d-flex align-items-center gap-2">
                         <span class="sidebar-brand-mark"><i class="bi bi-mortarboard-fill"></i></span>
@@ -409,6 +483,59 @@ if (!in_array($currentRoute, ['site/index', 'site/login'], true)):
                 <?= $content ?>
             </div>
         </div>
+
+        <script>
+        (function () {
+            var sidebar = document.getElementById('koraSidebar');
+            var toggleBtn = document.getElementById('sidebarToggleBtn');
+            var overlay = document.getElementById('sidebarOverlay');
+
+            if (!sidebar || !toggleBtn || !overlay) {
+                return;
+            }
+
+            function openSidebar() {
+                sidebar.classList.add('show');
+                overlay.classList.add('show');
+                toggleBtn.setAttribute('aria-expanded', 'true');
+                document.body.style.overflow = 'hidden';
+            }
+
+            function closeSidebar() {
+                sidebar.classList.remove('show');
+                overlay.classList.remove('show');
+                toggleBtn.setAttribute('aria-expanded', 'false');
+                document.body.style.overflow = '';
+            }
+
+            toggleBtn.addEventListener('click', function () {
+                if (sidebar.classList.contains('show')) {
+                    closeSidebar();
+                } else {
+                    openSidebar();
+                }
+            });
+
+            overlay.addEventListener('click', closeSidebar);
+
+            // Auto-close after tapping a nav link on small screens
+            sidebar.querySelectorAll('.sidebar-link').forEach(function (link) {
+                link.addEventListener('click', function () {
+                    if (window.innerWidth < 992) {
+                        closeSidebar();
+                    }
+                });
+            });
+
+            // If the window is resized back up to desktop, make sure the
+            // mobile-only classes are cleared out
+            window.addEventListener('resize', function () {
+                if (window.innerWidth >= 992) {
+                    closeSidebar();
+                }
+            });
+        })();
+        </script>
     <?php else: ?>
         <!-- Standard Content Layout for Unauthenticated Guests or the Parent Portal Landing Page -->
         <div class="container">

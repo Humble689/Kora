@@ -72,24 +72,24 @@ foreach ($reconciliationByChannel as $row) {
                 </h1>
                 <p class="text-muted small mb-0">Real-time ledger overview and cross-channel multi-tenant settlement audits.</p>
             </div>
-            <div class="d-flex align-items-center gap-2">
+            <div class="d-flex align-items-center flex-wrap gap-2 kora-header-actions">
                 <?= Html::beginForm(['site/term-rollover'], 'post', [
                     'class' => 'm-0 d-inline-block',
                     'onsubmit' => "return confirm('NEW TERM ROLLOVER WARNING\\n\\nAre you completely sure you want to start a new academic term?\\n\\nThis will automatically bill every active student the new term fee of UGX " . number_format($stats['base_tuition_fees'] ?? 850000, 0) . " and carry forward previous debts.\\n\\nAll student pocket money balances WILL safely continue untouched! This cannot be undone.');"
                 ]) ?>
-                    <button type="submit" class="btn btn-outline-primary fw-bold rounded-3 shadow-sm px-3 d-flex align-items-center gap-2">
+                    <button type="submit" class="btn btn-outline-primary fw-bold rounded-3 shadow-sm px-3 d-flex align-items-center justify-content-center gap-2">
                         <i class="bi bi-arrow-repeat"></i> Start New Term
                     </button>
                 <?= Html::endForm() ?>
 
-                <a href="<?= Url::toRoute(['site/register-student']) ?>" class="btn btn-primary fw-bold rounded-3 shadow-sm px-3 d-flex align-items-center gap-2">
+                <a href="<?= Url::toRoute(['site/register-student']) ?>" class="btn btn-primary fw-bold rounded-3 shadow-sm px-3 d-flex align-items-center justify-content-center gap-2">
                     <i class="bi bi-person-plus-fill"></i> Enroll Student
                 </a>
             </div>
         </div>
 
         <!-- Key Bursar Actions -->
-        <div class="d-flex flex-wrap gap-2 mb-4">
+        <div class="d-flex flex-wrap gap-2 mb-4 kora-actions-bar">
             <button type="button" class="btn btn-outline-success btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#walletModal">
                 <i class="bi bi-wallet-fill"></i> Wallet Top-Up / Freeze
             </button>
@@ -103,8 +103,8 @@ foreach ($reconciliationByChannel as $row) {
             <a href="<?= Url::toRoute(['site/expense-claims']) ?>" class="btn btn-outline-dark btn-sm fw-bold">
                 <i class="bi bi-clipboard-check-fill"></i> Approve Expense Claims
             </a>
-             <?= Html::beginForm(['site/force-pos-sync'], 'post', ['class' => 'd-inline']) ?>
-                <button type="submit" class="btn btn-outline-secondary btn-sm fw-bold">
+             <?= Html::beginForm(['site/force-pos-sync'], 'post', ['class' => 'd-inline kora-actions-bar-form']) ?>
+                <button type="submit" class="btn btn-outline-secondary btn-sm fw-bold w-100">
                     <i class="bi bi-arrow-repeat"></i> Force POS Sync
                 </button>
             <?= Html::endForm() ?>
@@ -164,7 +164,7 @@ foreach ($reconciliationByChannel as $row) {
         <!-- Settlement Reconciliation Tracker + S-Wallet Float Monitor -->
         <div class="row g-3 mb-4">
             <div class="col-12 col-lg-6">
-                <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100">
+                <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100 kora-card-contained">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <h6 class="fw-bold text-dark mb-0"><i class="bi bi-arrow-left-right me-2 text-primary"></i>Settlement Reconciliation</h6>
                         <?php if (($stats['settlement_gap'] ?? 0) > 0): ?>
@@ -175,13 +175,13 @@ foreach ($reconciliationByChannel as $row) {
                     </div>
                     <p class="text-muted small mb-3">Mobile money, card, and online gateway payments only — cash and internal wallet transfers settle differently and aren't included here.</p>
 
-                    <div class="d-flex gap-4 mb-3">
-                        <div class="flex-fill">
+                    <div class="d-flex flex-wrap gap-3 gap-md-4 mb-3">
+                        <div class="flex-fill kora-stat-block">
                             <div class="text-muted small text-uppercase fw-semibold">Network Cleared</div>
                             <div class="h4 fw-bold text-dark mb-0">UGX <?= number_format($stats['network_cleared'] ?? 0, 0) ?></div>
                         </div>
-                        <div class="vr"></div>
-                        <div class="flex-fill">
+                        <div class="vr d-none d-sm-block"></div>
+                        <div class="flex-fill kora-stat-block">
                             <div class="text-muted small text-uppercase fw-semibold">Bank Settled</div>
                             <div class="h4 fw-bold text-dark mb-0">UGX <?= number_format($stats['bank_settled'] ?? 0, 0) ?></div>
                         </div>
@@ -190,7 +190,7 @@ foreach ($reconciliationByChannel as $row) {
                     <?php if (empty($reconciliationLabels)): ?>
                         <div class="text-muted small fst-italic text-center py-4">No channel-level reconciliation data available.</div>
                     <?php else: ?>
-                        <div style="position: relative; height: 190px;">
+                        <div class="kora-chart-box" style="height: 190px;">
                             <canvas id="reconciliationChart"></canvas>
                         </div>
                     <?php endif; ?>
@@ -198,16 +198,16 @@ foreach ($reconciliationByChannel as $row) {
             </div>
 
             <div class="col-12 col-lg-6 d-flex">
-                <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100 w-100">
+                <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100 w-100 kora-card-contained">
                     <h6 class="fw-bold text-dark mb-3"><i class="bi bi-wallet2 me-2 text-success"></i>S-Wallet Float Monitor</h6>
-                    <div class="d-flex gap-4">
-                        <div class="flex-fill">
+                    <div class="d-flex flex-wrap gap-3 gap-md-4">
+                        <div class="flex-fill kora-stat-block">
                             <div class="text-muted small text-uppercase fw-semibold">Total Float Liability</div>
                             <div class="h4 fw-bold text-dark mb-0">UGX <?= number_format($stats['swallet_float'] ?? 0, 0) ?></div>
                             <div class="text-muted small">Held in escrow for canteen use</div>
                         </div>
-                        <div class="vr"></div>
-                        <div class="flex-fill">
+                        <div class="vr d-none d-sm-block"></div>
+                        <div class="flex-fill kora-stat-block">
                             <div class="text-muted small text-uppercase fw-semibold">Last 7 Days Top-ups</div>
                             <div class="h4 fw-bold text-dark mb-0">UGX <?= number_format($stats['swallet_7d_topups'] ?? 0, 0) ?></div>
                             <div class="text-muted small">Inflow into student wallets</div>
@@ -220,13 +220,15 @@ foreach ($reconciliationByChannel as $row) {
         <!-- Channel Utilization + Defaulter Heatmap -->
         <div class="row g-3 mb-4">
             <div class="col-12 col-lg-5">
-                <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100">
+                <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100 kora-card-contained">
                     <h6 class="fw-bold text-dark mb-3"><i class="bi bi-pie-chart-fill me-2 text-info"></i>Channel Utilization</h6>
-                    <canvas id="channelDonut" height="220"></canvas>
+                    <div class="kora-chart-box" style="height: 220px;">
+                        <canvas id="channelDonut"></canvas>
+                    </div>
                 </div>
             </div>
             <div class="col-12 col-lg-7">
-                <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100">
+                <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100 kora-card-contained">
                     <h6 class="fw-bold text-dark mb-3"><i class="bi bi-grid-3x3-gap-fill me-2 text-danger"></i>Defaulter Heatmap by Class</h6>
                     <?php if (empty($defaulterHeatmap)): ?>
                         <div class="text-muted small fst-italic text-center py-4">No class-level data available.</div>
@@ -235,20 +237,22 @@ foreach ($reconciliationByChannel as $row) {
                         $maxOutstanding = max(array_column($defaulterHeatmap, 'total_outstanding') ?: [1]);
                         if ($maxOutstanding <= 0) $maxOutstanding = 1;
                         ?>
-                        <div class="row g-2">
-                            <?php foreach ($defaulterHeatmap as $row):
-                                $intensity = min(1, ((float)$row['total_outstanding']) / $maxOutstanding);
-                                $bg = sprintf('rgba(220, 53, 69, %.2f)', 0.12 + ($intensity * 0.78));
-                                $textClass = $intensity > 0.45 ? 'text-white' : 'text-dark';
-                            ?>
-                                <div class="col-6 col-md-4 col-lg-3">
-                                    <div class="rounded-3 p-2 text-center h-100 <?= $textClass ?>" style="background-color: <?= $bg ?>;">
-                                        <div class="small fw-semibold text-truncate" style="font-size: 0.72rem;"><?= Html::encode($row['class_level']) ?></div>
-                                        <div class="fw-bold" style="font-size: 0.85rem;">UGX <?= number_format((float)$row['total_outstanding'], 0) ?></div>
-                                        <div class="small" style="font-size: 0.68rem; opacity: 0.85;"><?= (int)$row['defaulter_count'] ?> defaulter<?= (int)$row['defaulter_count'] === 1 ? '' : 's' ?></div>
+                        <div class="kora-heatmap-scroll">
+                            <div class="row g-2">
+                                <?php foreach ($defaulterHeatmap as $row):
+                                    $intensity = min(1, ((float)$row['total_outstanding']) / $maxOutstanding);
+                                    $bg = sprintf('rgba(220, 53, 69, %.2f)', 0.12 + ($intensity * 0.78));
+                                    $textClass = $intensity > 0.45 ? 'text-white' : 'text-dark';
+                                ?>
+                                    <div class="col-6 col-md-4 col-lg-3">
+                                        <div class="rounded-3 p-2 text-center h-100 <?= $textClass ?>" style="background-color: <?= $bg ?>;">
+                                            <div class="small fw-semibold text-truncate" style="font-size: 0.72rem;"><?= Html::encode($row['class_level']) ?></div>
+                                            <div class="fw-bold" style="font-size: 0.85rem;">UGX <?= number_format((float)$row['total_outstanding'], 0) ?></div>
+                                            <div class="small" style="font-size: 0.68rem; opacity: 0.85;"><?= (int)$row['defaulter_count'] ?> defaulter<?= (int)$row['defaulter_count'] === 1 ? '' : 's' ?></div>
+                                        </div>
                                     </div>
-                                </div>
-                            <?php endforeach; ?>
+                                <?php endforeach; ?>
+                            </div>
                         </div>
                         <div class="small text-muted mt-2">Darker tiles indicate a higher concentration of outstanding fees within that class.</div>
                     <?php endif; ?>
@@ -259,9 +263,11 @@ foreach ($reconciliationByChannel as $row) {
         <!-- Collection Velocity Graph -->
         <div class="row g-3 mb-4">
             <div class="col-12">
-                <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100">
+                <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100 kora-card-contained">
                     <h6 class="fw-bold text-dark mb-3"><i class="bi bi-graph-up-arrow me-2 text-primary"></i>Collection Velocity — This Term vs Last Term</h6>
-                    <canvas id="velocityChart" height="90"></canvas>
+                    <div class="kora-chart-box" style="height: 220px;">
+                        <canvas id="velocityChart"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
@@ -279,7 +285,7 @@ foreach ($reconciliationByChannel as $row) {
                     </a>
                 </div>
 
-                    <form method="get" action="<?= Url::toRoute(['site/bursar']) ?>" class="d-flex m-0 gap-1" style="max-width: 350px; width: 100%;">
+                    <form method="get" action="<?= Url::toRoute(['site/bursar']) ?>" class="d-flex m-0 gap-1 w-100" style="max-width: 350px;">
                         <div class="input-group input-group-sm">
                             <input type="hidden" name="q" value="<?= Html::encode($searchKeyword ?? '') ?>">
                             <input type="text" name="tx_q" value="<?= Html::encode($txSearchKeyword ?? '') ?>" class="form-control bg-white text-dark border-0 rounded-start-2" placeholder="Search reference, type, or channel..." autocomplete="off">
@@ -294,7 +300,8 @@ foreach ($reconciliationByChannel as $row) {
                 </div>
             </div>
 
-            <div class="table-responsive">
+            <!-- Desktop / tablet: full table, every column, no scrolling needed -->
+            <div class="table-responsive d-none d-md-block">
                 <table class="table table-hover table-striped align-middle mb-0 small">
                     <thead class="table-light text-secondary text-uppercase border-bottom">
                         <tr>
@@ -321,7 +328,7 @@ foreach ($reconciliationByChannel as $row) {
                                 <tr>
                                     <td class="ps-3 text-muted fw-semibold"><?= $txPages->getOffset() + $i + 1 ?></td>
 
-                                    <td class="ps-4 text-muted"><?= date('Y-m-d H:i', strtotime($tx->created_at)) ?></td>
+                                    <td class="ps-4 text-muted text-nowrap"><?= date('Y-m-d H:i', strtotime($tx->created_at)) ?></td>
 
                                    <td class="fw-bold text-dark">
                                         <?php if ($tx->transaction_type === 'EXPENSE'): ?>
@@ -350,7 +357,7 @@ foreach ($reconciliationByChannel as $row) {
                                         </span>
                                     </td>
 
-                                    <td class="pe-4 fw-bold text-dark text-end">
+                                    <td class="pe-4 fw-bold text-dark text-end text-nowrap">
                                         UGX <?= number_format((float)$tx->amount, 0) ?>
                                         <a href="<?= Url::toRoute(['site/print-receipt', 'id' => $tx->id]) ?>" target="_blank" class="btn btn-sm btn-light border ms-2" title="Print Receipt">
                                             <i class="bi bi-printer-fill"></i>
@@ -372,6 +379,68 @@ foreach ($reconciliationByChannel as $row) {
                 </table>
             </div>
 
+            <!-- Mobile: stacked receipt cards — every field shown, no side-scrolling -->
+            <div class="d-md-none">
+                <?php if (empty($recentTransactions)): ?>
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+                        No historical transactions logged match the filter criteria.
+                    </div>
+                <?php else: ?>
+                    <?php foreach ($recentTransactions as $i => $tx): ?>
+                        <?php $badgeClass = $txBadgeMap[$tx->transaction_type] ?? $txBadgeDefault; ?>
+                        <div class="kora-tx-card border-bottom p-3">
+                            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                                <div class="fw-bold text-dark">
+                                    <?php if ($tx->transaction_type === 'EXPENSE'): ?>
+                                        <span class="text-muted fst-italic"><i class="bi bi-receipt me-1"></i>Petty Cash / Dept. Expense</span>
+                                    <?php elseif ($tx->student): ?>
+                                        <?= Html::encode($tx->student->name) ?>
+                                    <?php else: ?>
+                                        <span class="text-muted fst-italic">Unknown Record</span>
+                                    <?php endif; ?>
+                                </div>
+                                <div class="fw-bold text-dark text-nowrap">UGX <?= number_format((float)$tx->amount, 0) ?></div>
+                            </div>
+
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                                <span class="badge rounded-pill px-3 py-2 fw-semibold <?= $badgeClass ?>">
+                                    <?= Html::encode($tx->transaction_type) ?>
+                                </span>
+                                <?php if (($tx->status ?? null) === 'VOIDED'): ?>
+                                    <span class="badge bg-secondary rounded-pill">Voided</span>
+                                <?php endif; ?>
+                                <span class="text-secondary small fw-semibold"><?= Html::encode($tx->payment_channel) ?></span>
+                            </div>
+
+                            <div class="small text-muted mb-2">
+                                #<?= $txPages->getOffset() + $i + 1 ?> &middot; <?= date('Y-m-d H:i', strtotime($tx->created_at)) ?>
+                            </div>
+
+                            <div class="small mb-2">
+                                <span class="bg-light px-2 py-1 rounded border d-inline-block font-monospace">
+                                    <?= Html::encode($tx->external_reference) ?>
+                                </span>
+                            </div>
+
+                            <div class="d-flex gap-2">
+                                <a href="<?= Url::toRoute(['site/print-receipt', 'id' => $tx->id]) ?>" target="_blank" class="btn btn-sm btn-light border flex-fill">
+                                    <i class="bi bi-printer-fill"></i> Print
+                                </a>
+                                <?php if (($tx->status ?? null) !== 'VOIDED'): ?>
+                                    <button type="button" class="btn btn-sm btn-light border flex-fill kora-void-trigger" title="Void / Reverse This Transaction"
+                                            data-bs-toggle="modal" data-bs-target="#voidModal"
+                                            data-tx-id="<?= (int)$tx->id ?>"
+                                            data-tx-label="<?= Html::encode(($tx->student->name ?? 'Unknown') . ' — ' . $tx->transaction_type . ' — UGX ' . number_format((float)$tx->amount, 0) . ' (' . date('Y-m-d', strtotime($tx->created_at)) . ')') ?>">
+                                        <i class="bi bi-x-octagon text-danger"></i> Void
+                                    </button>
+                                <?php endif; ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+
             <div class="card-footer bg-white d-flex flex-column flex-md-row justify-content-between align-items-center pt-3 border-top gap-2">
                 <div class="text-muted small">
                     <?php if ($totalCount > 0): ?>
@@ -383,7 +452,7 @@ foreach ($reconciliationByChannel as $row) {
                 <?= LinkPager::widget([
                     'pagination' => $txPages,
                     'maxButtonCount' => 5,
-                    'options' => ['class' => 'pagination pagination-sm mb-0'],
+                    'options' => ['class' => 'pagination pagination-sm mb-0 flex-wrap justify-content-center'],
                 ]) ?>
             </div>
         </div>
@@ -394,7 +463,7 @@ foreach ($reconciliationByChannel as $row) {
 
 <!-- Wallet Modal -->
 <div class="modal fade kora-modal" id="walletModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down">
         <?= Html::beginForm(['site/wallet-adjust'], 'post') ?>
         <div class="modal-content">
             <div class="modal-header">
@@ -439,7 +508,7 @@ foreach ($reconciliationByChannel as $row) {
 
 <!-- Void/Reversal Modal -->
 <div class="modal fade kora-modal" id="voidModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down">
         <?= Html::beginForm(['site/void-transaction'], 'post') ?>
         <div class="modal-content rounded-3">
             <div class="modal-header kora-modal-header-danger">
@@ -468,7 +537,7 @@ foreach ($reconciliationByChannel as $row) {
 
 <!-- Batch Invoice Modal -->
 <div class="modal fade kora-modal" id="batchInvoiceModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down">
         <?= Html::beginForm(['site/batch-invoice'], 'post') ?>
         <div class="modal-content">
             <div class="modal-header">
@@ -624,6 +693,84 @@ foreach ($reconciliationByChannel as $row) {
         border-radius: 8px;
         font-size: 0.82rem;
     }
+
+    /* ---------- Containment: stop chart canvases / grids from
+       overflowing their card and bleeding into the section below ---------- */
+    .kora-card-contained {
+        overflow: hidden;
+    }
+    .kora-chart-box {
+        position: relative;
+        width: 100%;
+        overflow: hidden;
+    }
+    .kora-chart-box canvas {
+        width: 100% !important;
+        height: 100% !important;
+        display: block;
+    }
+    .kora-heatmap-scroll {
+        max-height: 420px;
+        overflow-y: auto;
+    }
+
+    .kora-tx-card:last-child {
+        border-bottom: none !important;
+    }
+    .kora-tx-card:nth-child(odd) {
+        background-color: #fafbfd;
+    }
+
+    /* ---------- Responsive tweaks for small devices ---------- */
+    @media (max-width: 767.98px) {
+        .site-bursar .card.p-4 {
+            padding: 1.1rem !important;
+        }
+        .kora-stat-block .h4 {
+            font-size: 1.1rem;
+        }
+    }
+
+    @media (max-width: 575.98px) {
+        .site-bursar .container-fluid {
+            padding-left: 0.75rem;
+            padding-right: 0.75rem;
+        }
+        .site-bursar h1.h3 {
+            font-size: 1.2rem;
+        }
+        .site-bursar .card.p-4 {
+            padding: 0.9rem !important;
+        }
+
+        /* Header action buttons stack full-width */
+        .kora-header-actions {
+            width: 100%;
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .kora-header-actions form,
+        .kora-header-actions a.btn {
+            width: 100%;
+        }
+        .kora-header-actions .btn {
+            width: 100%;
+        }
+
+        /* Key bursar action buttons stack full-width */
+        .kora-actions-bar {
+            flex-direction: column;
+        }
+        .kora-actions-bar > .btn,
+        .kora-actions-bar > a.btn,
+        .kora-actions-bar > form.kora-actions-bar-form {
+            width: 100%;
+        }
+
+        .kora-stat-block {
+            min-width: 45%;
+        }
+    }
 </style>
 
 <script>
@@ -681,7 +828,11 @@ $this->registerJs(<<<JS
                         backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#dc3545', '#6f42c1', '#20c997']
                     }]
                 },
-                options: { plugins: { legend: { position: 'bottom' } } }
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } }
+                }
             });
         }
 
@@ -697,6 +848,7 @@ $this->registerJs(<<<JS
                     ]
                 },
                 options: {
+                    responsive: true,
                     maintainAspectRatio: false,
                     plugins: { legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } } },
                     scales: { y: { beginAtZero: true, ticks: { callback: v => (v / 1000) + 'k' } } }
@@ -717,7 +869,12 @@ $this->registerJs(<<<JS
                         { label: 'Last Term', data: prev.map(r => r.cumulative), borderColor: '#adb5bd', borderDash: [5,5], tension: 0.3 }
                     ]
                 },
-                options: { plugins: { legend: { position: 'bottom' } }, scales: { y: { beginAtZero: true } } }
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom' } },
+                    scales: { y: { beginAtZero: true } }
+                }
             });
         }
     });
@@ -761,6 +918,7 @@ $this->registerJs(<<<JS
 
             studentSelect.select2({
                 dropdownParent: $('#walletModal'),
+                width: '100%',
                 ajax: {
                     url: '{$studentsByClassUrl}',
                     dataType: 'json',
