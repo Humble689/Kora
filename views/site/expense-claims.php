@@ -42,11 +42,11 @@ $categoryBadgeDefault = 'bg-light text-dark';
                 <h1 class="h3 fw-bold text-dark mb-0">Expense Claims &amp; Petty Cash</h1>
                 <p class="text-muted small mb-0">Review, authorize, and release funds for departmental purchasing requests.</p>
             </div>
-            <div class="d-flex align-items-center gap-2">
-                <a href="<?= Url::toRoute(['site/bursar']) ?>" class="btn btn-outline-secondary fw-bold rounded-3 shadow-sm px-3 d-flex align-items-center gap-2">
+            <div class="d-flex align-items-center flex-wrap gap-2 kora-header-actions">
+                <a href="<?= Url::toRoute(['site/bursar']) ?>" class="btn btn-outline-secondary fw-bold rounded-3 shadow-sm px-3 d-flex align-items-center justify-content-center gap-2">
                     <i class="bi bi-arrow-left"></i> Back to Ledger
                 </a>
-                <button type="button" class="btn btn-primary fw-bold rounded-3 shadow-sm px-3 d-flex align-items-center gap-2" data-bs-toggle="modal" data-bs-target="#newClaimModal">
+                <button type="button" class="btn btn-primary fw-bold rounded-3 shadow-sm px-3 d-flex align-items-center justify-content-center gap-2" data-bs-toggle="modal" data-bs-target="#newClaimModal">
                     <i class="bi bi-plus-circle-fill"></i> New Claim
                 </button>
             </div>
@@ -83,14 +83,15 @@ $categoryBadgeDefault = 'bg-light text-dark';
         </div>
 
         <!-- Claims table -->
-        <div class="card border-0 shadow-sm rounded-3 overflow-hidden bg-white mb-4">
+        <div class="card border-0 shadow-sm rounded-3 overflow-hidden bg-white mb-4 kora-card-contained">
             <div class="card-header bg-primary text-white py-3">
                 <h5 class="card-title h6 fw-bold mb-0">
                     <i class="bi bi-clipboard-check-fill me-1"></i> Pending Departmental Requests
                 </h5>
             </div>
 
-            <div class="table-responsive">
+            <!-- Desktop / tablet: full table -->
+            <div class="table-responsive d-none d-md-block">
                 <table class="table table-hover table-striped align-middle mb-0 small">
                     <thead class="table-light text-secondary text-uppercase border-bottom">
                         <tr>
@@ -151,13 +152,63 @@ $categoryBadgeDefault = 'bg-light text-dark';
                     </tbody>
                 </table>
             </div>
+
+            <!-- Mobile: stacked claim cards — every field shown, no side-scrolling -->
+            <div class="d-md-none">
+                <?php if (empty($pendingClaims)): ?>
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-inbox fs-3 d-block mb-2"></i>
+                        No pending expense claims to review.
+                    </div>
+                <?php else: ?>
+                    <?php foreach ($pendingClaims as $i => $claim): ?>
+                        <?php $badgeClass = $categoryBadgeMap[$claim->category] ?? $categoryBadgeDefault; ?>
+                        <div class="kora-claim-card border-bottom p-3">
+                            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+                                <div class="fw-bold text-dark"><?= Html::encode($claim->requested_by->name ?? 'Unknown') ?></div>
+                                <div class="fw-bold text-dark text-nowrap">UGX <?= number_format((float)$claim->amount, 0) ?></div>
+                            </div>
+
+                            <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                                <span class="badge rounded-pill px-3 py-2 fw-semibold <?= $badgeClass ?>">
+                                    <?= Html::encode($claim->category) ?>
+                                </span>
+                                <span class="text-muted small">#<?= $i + 1 ?> &middot; <?= date('Y-m-d H:i', strtotime($claim->created_at)) ?></span>
+                            </div>
+
+                            <div class="small text-secondary mb-2"><?= Html::encode($claim->description) ?></div>
+
+                            <div class="small text-muted mb-3">
+                                Ref: <span class="font-monospace"><?= $claim->reference_number ? Html::encode($claim->reference_number) : '—' ?></span>
+                            </div>
+
+                            <div class="d-flex gap-2">
+                                <?= Html::beginForm(['site/expense-claims'], 'post', ['class' => 'm-0 flex-fill']) ?>
+                                    <?= Html::hiddenInput('claim_id', $claim->id) ?>
+                                    <?= Html::hiddenInput('decision', 'APPROVE') ?>
+                                    <button type="submit" class="btn btn-sm btn-success fw-bold w-100" title="Approve">
+                                        <i class="bi bi-check-lg"></i> Approve
+                                    </button>
+                                <?= Html::endForm() ?>
+                                <?= Html::beginForm(['site/expense-claims'], 'post', ['class' => 'm-0 flex-fill']) ?>
+                                    <?= Html::hiddenInput('claim_id', $claim->id) ?>
+                                    <?= Html::hiddenInput('decision', 'REJECT') ?>
+                                    <button type="submit" class="btn btn-sm btn-outline-danger fw-bold w-100" title="Reject" onclick="return confirm('Reject this claim?');">
+                                        <i class="bi bi-x-lg"></i> Reject
+                                    </button>
+                                <?= Html::endForm() ?>
+                            </div>
+                        </div>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
 </div>
 
 <!-- New Claim Modal -->
 <div class="modal fade kora-modal" id="newClaimModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-dialog-scrollable modal-fullscreen-sm-down">
         <?= Html::beginForm(['site/expense-claims-create'], 'post') ?>
         <div class="modal-content">
             <div class="modal-header">
@@ -181,11 +232,11 @@ $categoryBadgeDefault = 'bg-light text-dark';
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Amount (UGX)</label>
-                    <input type="" name="amount" class="form-control" min="0" step="500" required>
+                    <input type="number" name="amount" class="form-control" min="0" step="500" required>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Requested by</label>
-                    <input type="text" name="text" class="form-control" >
+                    <input type="text" name="requested_by" class="form-control">
                 </div>
             </div>
             <div class="modal-footer">
@@ -289,13 +340,39 @@ $categoryBadgeDefault = 'bg-light text-dark';
 
     .kora-modal .kora-btn-primary { background: var(--kora-blue-accent); }
     .kora-modal .kora-btn-primary:hover { background: #2563eb; color: #fff; }
+
+    .kora-card-contained {
+        overflow: hidden;
+    }
+
+    .kora-claim-card:last-child {
+        border-bottom: none !important;
+    }
+    .kora-claim-card:nth-child(odd) {
+        background-color: #fafbfd;
+    }
+
+    @media (max-width: 575.98px) {
+        .site-expense-claims .container-fluid {
+            padding-left: 0.75rem;
+            padding-right: 0.75rem;
+        }
+        .site-expense-claims h1.h3 {
+            font-size: 1.2rem;
+        }
+        .kora-header-actions {
+            width: 100%;
+            flex-direction: column;
+            align-items: stretch;
+        }
+        .kora-header-actions .btn {
+            width: 100%;
+        }
+    }
 </style>
 
 <script>
 document.addEventListener('DOMContentLoaded', function () {
-    // Same fix as the bursar dashboard's modals — the sidebar layout wrapper
-    // creates a stacking context that traps the modal behind the fixed top
-    // navbar. Moving the modal to be a direct child of <body> escapes it.
     document.querySelectorAll('.kora-modal').forEach(function (modalEl) {
         document.body.appendChild(modalEl);
     });

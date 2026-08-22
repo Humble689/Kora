@@ -248,7 +248,7 @@ $currentRoute = Yii::$app->controller->id . '/' . Yii::$app->controller->action-
             inset: 0;
             top: 56px;
             background: rgba(11, 20, 38, 0.45);
-            z-index: 150;
+            z-index: 90;
             opacity: 0;
             transition: opacity 0.25s ease;
         }
