@@ -31,4 +31,21 @@ class PosDevices extends ActiveRecord
             [['last_synced_at', 'created_at'], 'safe'],
         ];
     }
+
+    public function beforeValidate()
+    {
+        if ($this->isNewRecord && empty($this->device_uid)) {
+            $this->device_uid = $this->generateDeviceUid();
+        }
+        return parent::beforeValidate();
+    }
+
+    private function generateDeviceUid(): string
+    {
+        do {
+            $uid = 'POS-' . strtoupper(Yii::$app->security->generateRandomString(8));
+        } while (self::find()->where(['device_uid' => $uid])->exists());
+
+        return $uid;
+    }
 }

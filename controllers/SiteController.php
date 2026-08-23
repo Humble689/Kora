@@ -21,6 +21,7 @@ use yii\captcha\CaptchaAction;
 use yii\filters\AccessControl;
 use yii\filters\VerbFilter;
 use yii\base\Security;
+use yii\data\ActiveDataProvider;
 use yii\data\Pagination;
 use yii\mail\MailerInterface;
 use yii\web\Controller;
@@ -128,6 +129,8 @@ class SiteController extends Controller
             ],
         ];
     }
+
+
 
 
 
@@ -347,6 +350,25 @@ $stats['settlement_gap'] = $stats['network_cleared'] - $stats['bank_settled'];
         ->andWhere(['>=', 'transactions.created_at', date('Y-m-d H:i:s', strtotime('-7 days'))])
         ->sum('amount');
 
+    $stats['canteen_total_collected'] = (float) Transactions::find()
+    ->where(['transaction_type' => 'CANTEEN_SPEND', 'status' => 'SUCCESS'])
+    ->sum('amount');
+
+    $schoolId = Yii::$app->user->identity->school_id;
+
+$stats['pos_device_count'] = (int) PosDevices::find()
+    ->where(['school_id' => $schoolId])
+    ->count();
+
+$stats['pos_device_active_count'] = (int) PosDevices::find()
+    ->where(['school_id' => $schoolId, 'status' => 'ACTIVE'])
+    ->count();
+
+    $stats['canteen_today_collected'] = (float) Transactions::find()
+    ->where(['transaction_type' => 'CANTEEN_SPEND', 'status' => 'SUCCESS'])
+    ->andWhere(['between', 'created_at', date('Y-m-d 00:00:00'), date('Y-m-d 23:59:59')])
+    ->sum('amount');
+
     $channelBreakdown = Transactions::find()
         ->joinWith('student')
         ->select(['transactions.payment_channel', 'total' => 'SUM(transactions.amount)'])
@@ -518,6 +540,51 @@ private function buildCollectionVelocitySeries($schoolId, $currentTermId = null)
     ]);
 }
 
+public function actionRegisterDevice()
+{
+    $currentUser = Yii::$app->user->identity;
+
+    if (!in_array($currentUser->role, ['SUPER_ADMIN', 'SCHOOL_ADMIN'], true)) {
+        throw new \yii\web\ForbiddenHttpException('You are not authorized to register POS devices.');
+    }
+
+    $model = new PosDevices();
+    $model->status = 'ACTIVE';
+
+    // Non-super-admins can only register devices for their own school
+    if ($currentUser->role !== 'SUPER_ADMIN') {
+        $model->school_id = $currentUser->school_id;
+    }
+
+    if ($model->load(Yii::$app->request->post())) {
+        // Re-lock school_id server-side regardless of what was posted
+        if ($currentUser->role !== 'SUPER_ADMIN') {
+            $model->school_id = $currentUser->school_id;
+        }
+
+        if ($model->save()) {
+            Yii::$app->session->setFlash('success', "Device '{$model->label}' registered successfully — UID: {$model->device_uid}");
+            return $this->redirect(['site/register-device']);
+        }
+    }
+
+    $schools = ($currentUser->role === 'SUPER_ADMIN')
+        ? \yii\helpers\ArrayHelper::map(Schools::find()->all(), 'id', 'name')
+        : null;
+
+    $devicesQuery = PosDevices::find()->orderBy(['created_at' => SORT_DESC]);
+    if ($currentUser->role !== 'SUPER_ADMIN') {
+        $devicesQuery->andWhere(['school_id' => $currentUser->school_id]);
+    }
+    $devices = $devicesQuery->all();
+
+    return $this->render('register-device', [
+        'model' => $model,
+        'schools' => $schools,
+        'devices' => $devices,
+        'currentUserRole' => $currentUser->role,
+    ]);
+}
 
 public function actionProcessPayment()
 {
@@ -587,32 +654,34 @@ public function actionProcessPayment()
 }
 
 
-  
-    public function actionSignup()
-    {
-        if (Yii::$app->user->isGuest) {
-            return $this->render('signup_guest_support');
-        }
+  public function actionSignup()
+{
+    if (Yii::$app->user->isGuest) {
+        return $this->render('signup_guest_support');
+    }
 
-        $currentUser = Yii::$app->user->identity;
-        
-        // Security Lockout: Only Super Admins and School Admins can provision credentials
-        if (!in_array($currentUser->role, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'DOS'])) {
-            throw new \yii\web\ForbiddenHttpException("Unauthorized administrative onboarding access privileges.");
-        }
+    $currentUser = Yii::$app->user->identity;
 
-        $model = new SignupForm();
+    if (!in_array($currentUser->role, ['SUPER_ADMIN', 'SCHOOL_ADMIN', 'DOS'])) {
+        throw new \yii\web\ForbiddenHttpException("Unauthorized administrative onboarding access privileges.");
+    }
+
+    $model = new SignupForm();
+    $model->currentUserRole = $currentUser->role; // <-- new line
+
+    if (in_array($currentUser->role, ['SCHOOL_ADMIN', 'DOS'])) {
+        $model->school_id = $currentUser->school_id;
+    }
+
+    if ($model->load(Yii::$app->request->post())) {
+        $model->currentUserRole = $currentUser->role; // <-- reassert after load() overwrites attributes
 
         if (in_array($currentUser->role, ['SCHOOL_ADMIN', 'DOS'])) {
-            $model->school_id = $currentUser->school_id; 
+            $model->school_id = $currentUser->school_id;
         }
 
-        if ($model->load(Yii::$app->request->post())) {
-            if (in_array($currentUser->role, ['SCHOOL_ADMIN', 'DOS'])) {
-                $model->school_id = $currentUser->school_id;
-            }
-
-            if ($model->signup()) {
+        if ($model->signup()) {
+            // ...rest unchanged...
                 $schoolName = 'Our Institution';
                 $assignedSchool = Schools::findOne($model->school_id);
                 if ($assignedSchool) {
@@ -667,80 +736,165 @@ public function actionProcessPayment()
         ]);
     }
 
-    public function actionCanteenDebit()
-    {
-        Yii::$app->response->format = Response::FORMAT_JSON;
-        $request = Yii::$app->request;
+ public function actionCanteenDebit()
+{
+    Yii::$app->response->format = Response::FORMAT_JSON;
+    $request = Yii::$app->request;
 
-        if ($request->isPost) {
-            $paymentCode = $request->post('payment_code');
-            $chargeAmount = (float) $request->post('amount');
-
-            if (empty($paymentCode) || $chargeAmount <= 0) {
-                return ['success' => false, 'message' => 'Invalid sale checkout metrics.'];
-            }
-
-            $student = Students::findOne(['payment_code' => $paymentCode]);
-            if (!$student) {
-                return ['success' => false, 'message' => 'Student record not registered on network.'];
-            }
-
-            if ($chargeAmount > (float)$student->swallet_balance) {
-                return ['success' => false, 'message' => 'Insufficient wallet balance for this purchase.'];
-            }
-
-            // Compute Spent Balance Today
-            $startOfDay = date('Y-m-d 00:00:00');
-            $endOfDay = date('Y-m-d 23:59:59');
-            
-            $spentToday = (float) Transactions::find()
-                ->where(['student_id' => $student->id, 'transaction_type' => 'CANTEEN_SPEND'])
-                ->andWhere(['between', 'created_at', $startOfDay, $endOfDay])
-                ->sum('amount');
-
-            $remainingLimit = (float)$student->daily_spend_limit - $spentToday;
-
-            if ($chargeAmount > $remainingLimit) {
-                return ['success' => false, 'message' => 'Transaction blocked! Purchase exceeds the student\'s remaining daily spending limit of UGX ' . number_format($remainingLimit, 0)];
-            }
-
-            $dbTransaction = Yii::$app->db->beginTransaction();
-            try {
-                $student->swallet_balance -= $chargeAmount;
-                if (!$student->save()) {
-                    throw new \Exception('Failed to debit pocket money profile.');
-                }
-
-                $ledger = new Transactions();
-                $ledger->student_id = $student->id;
-                $ledger->amount = $chargeAmount;
-                $ledger->transaction_type = 'CANTEEN_SPEND';
-                $ledger->payment_channel = 'CANTEEN_POS';
-                $ledger->external_reference = 'POS_' . strtoupper(uniqid());
-                $ledger->status = 'SUCCESS';
-
-                if (!$ledger->save()) {
-                    throw new \Exception('Failed to commit merchant ledger tracking token.');
-                }
-
-                $dbTransaction->commit();
-
-                return [
-                    'success' => true,
-                    'message' => 'Purchase approved successfully!',
-                    'new_swallet' => number_format((float)$student->swallet_balance, 0),
-                ];
-
-            } catch (\Exception $e) {
-                $dbTransaction->rollBack();
-                return ['success' => false, 'message' => 'POS core error: ' . $e->getMessage()];
-            }
-        }
-
+    if (!$request->isPost) {
         return ['success' => false, 'message' => 'Bad Request.'];
     }
 
+    $paymentCode = $request->post('payment_code');
+    $chargeAmount = (float) $request->post('amount');
+    $deviceUid = trim((string) $request->post('device_uid'));
 
+    if (empty($paymentCode) || $chargeAmount <= 0) {
+        return ['success' => false, 'message' => 'Invalid sale checkout metrics.'];
+    }
+
+    if (empty($deviceUid)) {
+        return ['success' => false, 'message' => 'This terminal is not configured with a device ID.'];
+    }
+
+    $device = PosDevices::findOne(['device_uid' => $deviceUid]);
+    if (!$device) {
+        return ['success' => false, 'message' => 'Unrecognized terminal device. Please contact your administrator.'];
+    }
+
+    if ($device->status !== 'ACTIVE') {
+        return ['success' => false, 'message' => 'This terminal has been deactivated. Contact your administrator.'];
+    }
+
+    $dbTransaction = Yii::$app->db->beginTransaction();
+    try {
+        $student = Students::findBySql(
+            'SELECT * FROM ' . Students::tableName() . ' WHERE payment_code = :code FOR UPDATE',
+            [':code' => $paymentCode]
+        )->one();
+
+        if (!$student) {
+            $dbTransaction->rollBack();
+            return ['success' => false, 'message' => 'Student record not registered on network.'];
+        }
+
+        if (empty($student->school_id)) {
+            $dbTransaction->rollBack();
+            return [
+                'success' => false,
+                'message' => 'This student has no school assigned. Please update the student profile before processing a canteen purchase.',
+            ];
+        }
+
+        if ($chargeAmount > (float) $student->swallet_balance) {
+            $dbTransaction->rollBack();
+            return ['success' => false, 'message' => 'Insufficient wallet balance for this purchase.'];
+        }
+
+        $startOfDay = date('Y-m-d 00:00:00');
+        $endOfDay = date('Y-m-d 23:59:59');
+
+        $spentToday = (float) Transactions::find()
+            ->where(['student_id' => $student->id, 'transaction_type' => 'CANTEEN_SPEND'])
+            ->andWhere(['between', 'created_at', $startOfDay, $endOfDay])
+            ->sum('amount');
+
+        $remainingLimit = (float) $student->daily_spend_limit - $spentToday;
+
+        if ($chargeAmount > $remainingLimit) {
+            $dbTransaction->rollBack();
+            return [
+                'success' => false,
+                'message' => 'Transaction blocked! Purchase exceeds the student\'s remaining daily spending limit of UGX ' . number_format($remainingLimit, 0),
+            ];
+        }
+
+        $student->swallet_balance -= $chargeAmount;
+        if (!$student->save()) {
+            throw new \Exception('Failed to debit pocket money profile.');
+        }
+
+        $ledger = new Transactions();
+        $ledger->student_id = $student->id;
+        $ledger->school_id = $student->school_id;
+        $ledger->device_id = $device->id;
+        $ledger->amount = $chargeAmount;
+        $ledger->transaction_type = 'CANTEEN_SPEND';
+        $ledger->payment_channel = 'CANTEEN_POS';
+        $ledger->external_reference = 'POS_' . strtoupper(uniqid());
+        $ledger->status = 'SUCCESS';
+
+        if (!$ledger->save()) {
+            throw new \Exception('Failed to commit merchant ledger tracking token.');
+        }
+
+        // Update device sync timestamp
+        $device->last_synced_at = date('Y-m-d H:i:s');
+        $device->save(false);
+
+        $dbTransaction->commit();
+
+        $newRemainingLimit = $remainingLimit - $chargeAmount;
+
+        return [
+            'success' => true,
+            'message' => 'Purchase approved successfully!',
+            'new_swallet' => number_format((float) $student->swallet_balance, 0),
+            'new_remaining_limit' => number_format($newRemainingLimit, 0),
+        ];
+
+    } catch (\Exception $e) {
+        $dbTransaction->rollBack();
+        return ['success' => false, 'message' => 'POS core error: ' . $e->getMessage()];
+    }
+}
+
+
+
+
+public function actionCanteenTransactions()
+{
+    $searchQuery = trim((string) Yii::$app->request->get('q', ''));
+
+    $query = Transactions::find()
+        ->alias('t')
+        ->joinWith(['student', 'school', 'device'])
+        ->where(['t.transaction_type' => 'CANTEEN_SPEND']);
+
+    if ($searchQuery !== '') {
+        $like = '%' . strtr($searchQuery, ['%' => '\%', '_' => '\_']) . '%';
+        $query->andWhere(['or',
+            ['ilike', 'student.name', $like, false],
+            ['ilike', 'school.name', $like, false],
+            ['ilike', 'pos_devices.label', $like, false],
+            ['ilike', 'pos_devices.device_uid', $like, false],
+        ]);
+    }
+
+    $dataProvider = new ActiveDataProvider([
+        'query' => $query,
+        'pagination' => ['pageSize' => 25],
+        'sort' => [
+            'attributes' => [
+                'created_at' => [
+                    'asc' => ['t.created_at' => SORT_ASC],
+                    'desc' => ['t.created_at' => SORT_DESC],
+                    'default' => SORT_DESC,
+                ],
+                'amount' => [
+                    'asc' => ['t.amount' => SORT_ASC],
+                    'desc' => ['t.amount' => SORT_DESC],
+                ],
+            ],
+            'defaultOrder' => ['created_at' => SORT_DESC],
+        ],
+    ]);
+
+    return $this->render('canteen-transactions', [
+        'dataProvider' => $dataProvider,
+        'searchQuery' => $searchQuery,
+    ]);
+}
 
     public function actionStudentDashboard($code = null)
     {
@@ -2298,25 +2452,25 @@ public function actionBatchInvoice()
 
 public function actionForcePosSync()
 {
-    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
-        throw new \yii\web\ForbiddenHttpException();
+    if (!Yii::$app->request->isPost) {
+        throw new \yii\web\MethodNotAllowedHttpException('This action only accepts POST requests.');
     }
 
-    $schoolId = Yii::$app->user->identity->school_id;
+    $identity = Yii::$app->user->identity;
+    $now = date('Y-m-d H:i:s');
 
-    // Replace with actual device-messaging integration (MQTT/webhook/push).
-    $devices = PosDevices::find()->where(['school_id' => $schoolId, 'status' => 'ONLINE'])->all();
-    $synced = 0;
-    foreach ($devices as $device) {
-        try {
-            Yii::$app->posGateway->sendForceSyncCommand($device->device_uid);
-            $synced++;
-        } catch (\Throwable $e) {
-        }
+    $condition = ['status' => 'ACTIVE'];
+
+    // Scope to the user's own school unless they're a super admin
+    if ($identity->role !== 'SUPER_ADMIN') {
+        $condition['school_id'] = $identity->school_id;
     }
 
-    Yii::$app->session->setFlash('success', "Sync command sent to {$synced} device(s).");
-    return $this->redirect(['site/bursar']);
+    $updated = PosDevices::updateAll(['last_synced_at' => $now], $condition);
+
+    Yii::$app->session->setFlash('success', "Sync signal sent to {$updated} active POS device(s) at " . date('H:i', strtotime($now)) . '.');
+
+    return $this->redirect(Yii::$app->request->referrer ?? ['site/bursar']);
 }
 
 

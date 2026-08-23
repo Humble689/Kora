@@ -159,14 +159,21 @@ $currentRoute = Yii::$app->controller->id . '/' . Yii::$app->controller->action-
 
         .sidebar-panel {
             width: 260px;
-            min-height: calc(100vh - 56px);
+            height: calc(100vh - 56px);
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            scrollbar-width: none;
+            -ms-overflow-style: none;
             position: fixed;
             top: 56px;
             left: 0;
-            z-index: 100;
+            z-index: 200;
             background: linear-gradient(180deg, #1f6feb 0%, #1657c1 100%) !important;
             border-right: 1px solid rgba(255, 255, 255, 0.18);
             padding: 1.5rem 1rem;
+        }
+        .sidebar-panel::-webkit-scrollbar {
+            display: none;
         }
         .sidebar-link {
             display: flex;
@@ -235,7 +242,7 @@ $currentRoute = Yii::$app->controller->id . '/' . Yii::$app->controller->action-
             position: fixed;
             top: 66px;
             left: 14px;
-            z-index: 200;
+            z-index: 210;
             box-shadow: 0 6px 16px rgba(16, 33, 58, 0.18);
         }
         .sidebar-toggle-btn:hover {
@@ -248,7 +255,7 @@ $currentRoute = Yii::$app->controller->id . '/' . Yii::$app->controller->action-
             inset: 0;
             top: 56px;
             background: rgba(11, 20, 38, 0.45);
-            z-index: 90;
+            z-index: 150;
             opacity: 0;
             transition: opacity 0.25s ease;
         }
@@ -282,6 +289,41 @@ $currentRoute = Yii::$app->controller->id . '/' . Yii::$app->controller->action-
             .sidebar-panel.side {
                 width: 82vw;
                 max-width: 300px;
+            }
+        }
+
+        /* Hamburger is hidden while the sidebar is open — the close (X)
+           button inside the sidebar and the backdrop both close it instead,
+           so the hamburger never sits stacked on top of the open panel. */
+        .sidebar-toggle-btn.is-hidden {
+            display: none !important;
+        }
+
+        .sidebar-close-btn {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            border: none;
+            border-radius: 0.5rem;
+            background: rgba(255, 255, 255, 0.12);
+            color: #fff;
+            font-size: 1rem;
+            position: absolute;
+            top: 0.85rem;
+            right: 0.85rem;
+        }
+        .sidebar-close-btn:hover {
+            background: rgba(255, 255, 255, 0.22);
+        }
+
+        @media (max-width: 991.98px) {
+            .sidebar-close-btn {
+                display: inline-flex;
+            }
+            .sidebar-panel.side {
+                position: fixed;
             }
         }
     </style>
@@ -332,6 +374,31 @@ if (!in_array($currentRoute, ['site/index', 'site/login'], true)):
                 <a href="<?= Url::toRoute(['site/index']) ?>" class="sidebar-link <?= $currentRoute === 'site/index' ? 'active' : '' ?>"><i class="bi bi-house-door"></i> Parent Portal</a>
 
 
+                <!-- SUPER ADMIN: full site access, every section in one place -->
+                <?php if ($role === 'SUPER_ADMIN'): ?>
+                    <div class="sidebar-heading">Platform</div>
+                    <a href="<?= Url::toRoute(['site/school-registry']) ?>" class="sidebar-link <?= $currentRoute === 'site/school-registry' ? 'active' : '' ?>"><i class="bi bi-diagram-3-fill"></i> Master School Registry</a>
+                    <a href="<?= Url::toRoute(['site/create-school']) ?>" class="sidebar-link <?= $currentRoute === 'site/create-school' ? 'active' : '' ?>"><i class="bi bi-building-add"></i> Onboard New School</a>
+
+                    <div class="sidebar-heading">School Management</div>
+                    <a href="<?= Url::toRoute(['site/school-admin']) ?>" class="sidebar-link <?= $currentRoute === 'site/school-admin' ? 'active' : '' ?>"><i class="bi bi-shield-shaded"></i> Admin Dashboard</a>
+                    <a href="<?= Url::toRoute(['site/signup']) ?>" class="sidebar-link <?= $currentRoute === 'site/signup' ? 'active' : '' ?>"><i class="bi bi-person-plus-fill"></i> Provision Staff Account</a>
+
+                    <div class="sidebar-heading">Financial Audits</div>
+                    <a href="<?= Url::toRoute(['site/bursar']) ?>" class="sidebar-link <?= $currentRoute === 'site/bursar' ? 'active' : '' ?>"><i class="bi bi-receipt-cutoff"></i> Collections Ledger</a>
+                    <a href="<?= Url::toRoute(['site/canteen-terminal']) ?>" class="sidebar-link <?= $currentRoute === 'site/canteen' ? 'active' : '' ?>"><i class="bi bi-cup-straw"></i> Canteen POS Terminal</a>
+                    <a href="<?= Url::toRoute(['site/canteen-transactions']) ?>" class="sidebar-link <?= $currentRoute === 'site/canteen-transactions' ? 'active' : '' ?>"><i class="bi bi-clock-history"></i> Canteen Transactions</a>
+                    <a href="<?= Url::toRoute(['site/students-directory']) ?>" class="sidebar-link <?= $currentRoute === 'site/students-directory' ? 'active' : '' ?>"><i class="bi bi-people-fill"></i> Student Directory</a>
+                    <a href="<?= Url::toRoute(['site/register-student']) ?>" class="sidebar-link <?= $currentRoute === 'site/register-student' ? 'active' : '' ?>"><i class="bi bi-person-plus"></i> Enroll Student</a>
+                    <a href="<?= Url::toRoute(['site/expense-claims']) ?>" class="sidebar-link <?= $currentRoute === 'site/expense-claims' ? 'active' : '' ?>"><i class="bi bi-clipboard-check-fill"></i> Expense Claims</a>
+
+                    <div class="sidebar-heading">Academic Moderation</div>
+                    <a href="<?= Url::toRoute(['site/manage-assignments']) ?>" class="sidebar-link <?= $currentRoute === 'site/manage-assignments' ? 'active' : '' ?>"><i class="bi bi-person-gear"></i> Allocate Teachers</a>
+                    <a href="<?= Url::toRoute(['site/teacher-grading']) ?>" class="sidebar-link <?= $currentRoute === 'site/teacher-grading' ? 'active' : '' ?>"><i class="bi bi-journal-check"></i> Enter Term Marks</a>
+                    <a href="<?= Url::toRoute(['site/dos-review']) ?>" class="sidebar-link <?= $currentRoute === 'site/dos-review' ? 'active' : '' ?>"><i class="bi bi-clipboard-check"></i> Review &amp; Seal Marks</a>
+                    <a href="<?= Url::toRoute(['site/print-reports']) ?>" class="sidebar-link <?= $currentRoute === 'site/print-reports' ? 'active' : '' ?>"><i class="bi bi-printer"></i> Print Report Cards</a>
+                <?php endif; ?>
+
                 <!-- SCHOOL MASTER ADMINISTRATOR SIDEBAR DESK -->
                 <?php if ($role === 'SCHOOL_ADMIN'): ?>
                     <div class="sidebar-heading">School Management</div>
@@ -340,11 +407,13 @@ if (!in_array($currentRoute, ['site/index', 'site/login'], true)):
 
                     <div class="sidebar-heading">Financial Audits</div>
                     <a href="<?= Url::toRoute(['site/bursar']) ?>" class="sidebar-link <?= $currentRoute === 'site/bursar' ? 'active' : '' ?>"><i class="bi bi-receipt-cutoff"></i> Collections Ledger</a>
+                    <a href="<?= Url::toRoute(['site/canteen-terminal']) ?>" class="sidebar-link <?= $currentRoute === 'site/canteen' ? 'active' : '' ?>"><i class="bi bi-cup-straw"></i> Canteen POS Terminal</a>
+                    <a href="<?= Url::toRoute(['site/canteen-transactions']) ?>" class="sidebar-link <?= $currentRoute === 'site/canteen-transactions' ? 'active' : '' ?>"><i class="bi bi-clock-history"></i> Canteen Transactions</a>
                     <a href="<?= Url::toRoute(['site/students-directory']) ?>" class="sidebar-link <?= $currentRoute === 'site/students-directory' ? 'active' : '' ?>"><i class="bi bi-people-fill"></i> Student Directory</a>
 
                     <div class="sidebar-heading">Academic Moderation</div>
-                    <a href="<?= Url::toRoute(['site/dos-review']) ?>" class="sidebar-link <?= $currentRoute === 'site/dos-review' ? 'active' : '' ?>"><i class="bi bi-clipboard-check"></i> Review &amp; Seal Marks</a>
                     <a href="<?= Url::toRoute(['site/manage-assignments']) ?>" class="sidebar-link <?= $currentRoute === 'site/manage-assignments' ? 'active' : '' ?>"><i class="bi bi-person-gear"></i> Allocate Teachers</a>
+                    <a href="<?= Url::toRoute(['site/dos-review']) ?>" class="sidebar-link <?= $currentRoute === 'site/dos-review' ? 'active' : '' ?>"><i class="bi bi-clipboard-check"></i> Review &amp; Seal Marks</a>
                     <a href="<?= Url::toRoute(['site/print-reports']) ?>" class="sidebar-link <?= $currentRoute === 'site/print-reports' ? 'active' : '' ?>"><i class="bi bi-printer"></i> Print Report Cards</a>
                 <?php endif; ?>
 
@@ -353,9 +422,17 @@ if (!in_array($currentRoute, ['site/index', 'site/login'], true)):
                 <?php if ($role === 'BURSAR'): ?>
                     <div class="sidebar-heading">Bursar Operations</div>
                     <a href="<?= Url::toRoute(['site/bursar']) ?>" class="sidebar-link <?= $currentRoute === 'site/bursar' ? 'active' : '' ?>"><i class="bi bi-receipt-cutoff"></i> Collections Ledger</a>
+                    <a href="<?= Url::toRoute(['site/canteen-transactions']) ?>" class="sidebar-link <?= $currentRoute === 'site/canteen-transactions' ? 'active' : '' ?>"><i class="bi bi-clock-history"></i> Canteen Transactions</a>
                     <a href="<?= Url::toRoute(['site/students-directory']) ?>" class="sidebar-link <?= $currentRoute === 'site/students-directory' ? 'active' : '' ?>"><i class="bi bi-people-fill"></i> Student Directory</a>
                     <a href="<?= Url::toRoute(['site/register-student']) ?>" class="sidebar-link <?= $currentRoute === 'site/register-student' ? 'active' : '' ?>"><i class="bi bi-person-plus"></i> Enroll Student</a>
                     <a href="<?= Url::toRoute(['site/expense-claims']) ?>" class="sidebar-link <?= $currentRoute === 'site/expense-claims' ? 'active' : '' ?>"><i class="bi bi-clipboard-check-fill"></i> Expense Claims</a>
+                <?php endif; ?>
+
+               <!-- CANTEEN SIDEBAR CONTROLS -->
+                <?php if ($role === 'CANTEEN'): ?>
+                    <div class="sidebar-heading">Canteen Operations</div>
+                    <a href="<?= Url::toRoute(['site/canteen-terminal']) ?>" class="sidebar-link <?= $currentRoute === 'site/canteen' ? 'active' : '' ?>"><i class="bi bi-cup-straw"></i> Canteen POS Terminal</a>
+                    <a href="<?= Url::toRoute(['site/canteen-transactions']) ?>" class="sidebar-link <?= $currentRoute === 'site/canteen-transactions' ? 'active' : '' ?>"><i class="bi bi-clock-history"></i> Canteen Transactions</a>
                 <?php endif; ?>
 
 
@@ -366,12 +443,17 @@ if (!in_array($currentRoute, ['site/index', 'site/login'], true)):
                 <?php endif; ?>
 
                 <!-- D.O.S. SIDEBAR CONTROLS -->
-                <?php if ($role === 'DOS' || $role === 'SUPER_ADMIN'): ?>
+                <?php if ($role === 'DOS'): ?>
                     <div class="sidebar-heading">Academic Moderation</div>
-                    <a href="<?= Url::toRoute(['site/dos-review']) ?>" class="sidebar-link <?= $currentRoute === 'site/dos-review' ? 'active' : '' ?>"><i class="bi bi-clipboard-check"></i> Review &amp; Seal Marks</a>
                     <a href="<?= Url::toRoute(['site/manage-assignments']) ?>" class="sidebar-link <?= $currentRoute === 'site/manage-assignments' ? 'active' : '' ?>"><i class="bi bi-person-gear"></i> Allocate Teachers</a>
+                    <a href="<?= Url::toRoute(['site/dos-review']) ?>" class="sidebar-link <?= $currentRoute === 'site/dos-review' ? 'active' : '' ?>"><i class="bi bi-clipboard-check"></i> Review &amp; Seal Marks</a>
                     <a href="<?= Url::toRoute(['site/print-reports']) ?>" class="sidebar-link <?= $currentRoute === 'site/print-reports' ? 'active' : '' ?>"><i class="bi bi-printer"></i> Print Report Cards</a>
                 <?php endif; ?>
+
+                <!-- Close button, mobile only -->
+                <button type="button" class="sidebar-close-btn d-lg-none" id="sidebarCloseBtn" aria-label="Close navigation">
+                    <i class="bi bi-x-lg"></i>
+                </button>
             </div>
 
 <style>
@@ -386,7 +468,6 @@ if (!in_array($currentRoute, ['site/index', 'site/login'], true)):
     /* ===== Sidebar ===== */
     .sidebar-panel.side {
         background: linear-gradient(180deg, var(--kora-blue-900) 0%, var(--kora-blue-800) 100%);
-        min-height: 100vh;
         padding-top: 0.75rem;
         box-shadow: 2px 0 12px rgba(11, 42, 82, 0.15);
     }
@@ -489,6 +570,7 @@ if (!in_array($currentRoute, ['site/index', 'site/login'], true)):
             var sidebar = document.getElementById('koraSidebar');
             var toggleBtn = document.getElementById('sidebarToggleBtn');
             var overlay = document.getElementById('sidebarOverlay');
+            var closeBtn = document.getElementById('sidebarCloseBtn');
 
             if (!sidebar || !toggleBtn || !overlay) {
                 return;
@@ -497,6 +579,7 @@ if (!in_array($currentRoute, ['site/index', 'site/login'], true)):
             function openSidebar() {
                 sidebar.classList.add('show');
                 overlay.classList.add('show');
+                toggleBtn.classList.add('is-hidden');
                 toggleBtn.setAttribute('aria-expanded', 'true');
                 document.body.style.overflow = 'hidden';
             }
@@ -504,6 +587,7 @@ if (!in_array($currentRoute, ['site/index', 'site/login'], true)):
             function closeSidebar() {
                 sidebar.classList.remove('show');
                 overlay.classList.remove('show');
+                toggleBtn.classList.remove('is-hidden');
                 toggleBtn.setAttribute('aria-expanded', 'false');
                 document.body.style.overflow = '';
             }
@@ -517,6 +601,10 @@ if (!in_array($currentRoute, ['site/index', 'site/login'], true)):
             });
 
             overlay.addEventListener('click', closeSidebar);
+
+            if (closeBtn) {
+                closeBtn.addEventListener('click', closeSidebar);
+            }
 
             // Auto-close after tapping a nav link on small screens
             sidebar.querySelectorAll('.sidebar-link').forEach(function (link) {
@@ -532,6 +620,7 @@ if (!in_array($currentRoute, ['site/index', 'site/login'], true)):
             window.addEventListener('resize', function () {
                 if (window.innerWidth >= 992) {
                     closeSidebar();
+                    toggleBtn.classList.remove('is-hidden');
                 }
             });
         })();

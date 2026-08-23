@@ -9,6 +9,21 @@ use yii\bootstrap5\Html;
 $this->title = 'KORA Canteen Counter Terminal';
 ?>
 
+<div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3 border-secondary-subtle">
+    <div>
+        <span class="text-success text-uppercase tracking-wider fw-bold small d-block mb-1" style="font-size: 11px;">
+            Canteen Check-Out Counter
+        </span>
+        <h1 class="h3 fw-bold text-dark mb-1">Cashless Pocket Money Terminal</h1>
+        <p class="text-muted small mb-0">Scan barcode or enter the student 10-digit code to execute terminal wallet deductions.</p>
+    </div>
+    <div class="text-end">
+        <span class="badge bg-light text-dark border small" id="posDeviceBadge" style="cursor: pointer;" onclick="promptDeviceSetup()">
+            <i class="bi bi-hdd-stack"></i> <span id="posDeviceLabel">No device set</span>
+        </span>
+    </div>
+</div>
+
 <div class="site-canteen bg-light py-5 min-vh-100 text-dark">
     <div class="container-fluid" style="max-width: 1200px;">
         
@@ -64,11 +79,11 @@ $this->title = 'KORA Canteen Counter Terminal';
                 </div>
 
                 <div id="terminalScreenActive" class="card border-0 bg-white text-dark rounded-3 shadow-sm d-none overflow-hidden border-start border-4">
-                    <div class="card-header bg-dark text-white py-3 border-0 d-flex justify-content-between align-items-center">
-                        <h5 class="card-title h6 fw-bold mb-0 d-flex align-items-center gap-2 text-uppercase tracking-wide" style="font-size: 12px;">
+                    <div class="card-header bg-primary text-white py-3 border-0 d-flex justify-content-between align-items-center">
+                        <h5 class="card-title h6 fw-bold mb-0 d-flex align-items-center gap-2 text-uppercase text-white tracking-wide" style="font-size: 12px;">
                             <i class="bi bi-person-badge"></i> Active Student File
                         </h5>
-                        <span class="badge bg-secondary tracking-wide text-uppercase" id="posClassLevel">-</span>
+                        <span class="badge bg-white tracking-wide text-uppercase" id="posClassLevel">-</span>
                     </div>
 
                     <div class="card-body p-4">
@@ -100,7 +115,7 @@ $this->title = 'KORA Canteen Counter Terminal';
                             </div>
                         </div>
 
-                        <button id="confirmPurchaseBtn" onclick="commitCanteenDeduction()" class="btn btn-danger btn-lg w-100 rounded-2 fw-bold shadow-sm py-3 text-uppercase tracking-wide" style="font-size: 14px;">
+                        <button id="confirmPurchaseBtn" onclick="commitCanteenDeduction()" class="btn btn-outline-danger btn-lg w-100 rounded-2 fw-bold shadow-sm py-3 text-uppercase tracking-wide" style="font-size: 14px;">
                             Confirm Purchase & Deduct Funds
                         </button>
                     </div>
@@ -119,7 +134,32 @@ $this->title = 'KORA Canteen Counter Terminal';
 
 <!-- <link rel="stylesheet" href="https://jsdelivr.net"> -->
 
+
+
 <script>
+const DEVICE_STORAGE_KEY = 'kora_pos_device_uid';
+
+function getDeviceUid() {
+    return localStorage.getItem(DEVICE_STORAGE_KEY) || '';
+}
+
+function promptDeviceSetup() {
+    const current = getDeviceUid();
+    const uid = prompt("Enter this terminal's device ID (provided by admin):", current);
+    if (uid && uid.trim()) {
+        localStorage.setItem(DEVICE_STORAGE_KEY, uid.trim());
+        updateDeviceBadge();
+    }
+}
+
+function updateDeviceBadge() {
+    const uid = getDeviceUid();
+    document.getElementById('posDeviceLabel').innerText = uid ? uid : 'No device set — click to configure';
+}
+
+document.addEventListener('DOMContentLoaded', updateDeviceBadge);
+
+
 function executePosLookup(event) {
     event.preventDefault();
     const form = document.getElementById('posLookupForm');
@@ -159,6 +199,12 @@ function executePosLookup(event) {
 function commitCanteenDeduction() {
     const code = document.getElementById('posCodeInput').value;
     const amount = document.getElementById('posChargeAmount').value;
+    const deviceUid = getDeviceUid();
+
+    if (!deviceUid) {
+        alert("This terminal isn't configured yet. Click the device badge at the top to set it up.");
+        return;
+    }
 
     if (!amount || amount <= 0) {
         alert("Please enter a valid checkout transaction value.");
@@ -172,6 +218,7 @@ function commitCanteenDeduction() {
     const params = new URLSearchParams();
     params.append('payment_code', code);
     params.append('amount', amount);
+    params.append('device_uid', deviceUid);
     params.append('<?= Yii::$app->request->csrfParam ?>', '<?= Yii::$app->request->getCsrfToken() ?>');
 
     fetch('<?= yii\helpers\Url::toRoute(['site/canteen-debit']) ?>', {
@@ -184,14 +231,12 @@ function commitCanteenDeduction() {
         if (data.success) {
             alert(data.message);
             document.getElementById('posSwalletBalance').innerText = data.new_swallet;
-            
             document.getElementById('posDailyLimit').innerText = data.new_remaining_limit;
-            
             document.getElementById('posChargeAmount').value = '';
         } else {
             alert("POS Execution Rejected:\n" + data.message);
         }
-    })
+    });
 }
 </script>
 

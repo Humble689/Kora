@@ -197,24 +197,42 @@ foreach ($reconciliationByChannel as $row) {
                 </div>
             </div>
 
-            <div class="col-12 col-lg-6 d-flex">
-                <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100 w-100 kora-card-contained">
-                    <h6 class="fw-bold text-dark mb-3"><i class="bi bi-wallet2 me-2 text-success"></i>S-Wallet Float Monitor</h6>
-                    <div class="d-flex flex-wrap gap-3 gap-md-4">
-                        <div class="flex-fill kora-stat-block">
-                            <div class="text-muted small text-uppercase fw-semibold">Total Float Liability</div>
-                            <div class="h4 fw-bold text-dark mb-0">UGX <?= number_format($stats['swallet_float'] ?? 0, 0) ?></div>
-                            <div class="text-muted small">Held in escrow for canteen use</div>
-                        </div>
-                        <div class="vr d-none d-sm-block"></div>
-                        <div class="flex-fill kora-stat-block">
-                            <div class="text-muted small text-uppercase fw-semibold">Last 7 Days Top-ups</div>
-                            <div class="h4 fw-bold text-dark mb-0">UGX <?= number_format($stats['swallet_7d_topups'] ?? 0, 0) ?></div>
-                            <div class="text-muted small">Inflow into student wallets</div>
-                        </div>
-                    </div>
-                </div>
+         <div class="col-12 col-lg-6 d-flex">
+    <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100 w-100 kora-card-contained">
+        <h6 class="fw-bold text-dark mb-3"><i class="bi bi-wallet2 me-2 text-success"></i>S-Wallet Float Monitor</h6>
+        <div class="d-flex flex-wrap gap-3 gap-md-4">
+            <div class="flex-fill kora-stat-block">
+                <div class="text-muted small text-uppercase fw-semibold">Total Float Liability</div>
+                <div class="h4 fw-bold text-dark mb-0">UGX <?= number_format($stats['swallet_float'] ?? 0, 0) ?></div>
+                <div class="text-muted small">Held in escrow for canteen use</div>
             </div>
+            <div class="vr d-none d-sm-block"></div>
+            <div class="flex-fill kora-stat-block">
+                <div class="text-muted small text-uppercase fw-semibold">Last 7 Days Top-ups</div>
+                <div class="h4 fw-bold text-dark mb-0">UGX <?= number_format($stats['swallet_7d_topups'] ?? 0, 0) ?></div>
+                <div class="text-muted small">Inflow into student wallets</div>
+            </div>
+            <div class="vr d-none d-sm-block"></div>
+            <div class="flex-fill kora-stat-block">
+                <div class="text-muted small text-uppercase fw-semibold">Total Canteen Collected</div>
+                <div class="h4 fw-bold text-dark mb-0">UGX <?= number_format($stats['canteen_total_collected'] ?? 0, 0) ?></div>
+                <div class="text-muted small">All-time canteen wallet deductions</div>
+            </div>
+            <div class="vr d-none d-sm-block"></div>
+            <div class="flex-fill kora-stat-block">
+                <div class="text-muted small text-uppercase fw-semibold">Today's Canteen Collections</div>
+                <div class="h4 fw-bold text-dark mb-0">UGX <?= number_format($stats['canteen_today_collected'] ?? 0, 0) ?></div>
+                <div class="text-muted small">Deductions processed today</div>
+            </div>
+            <div class="vr d-none d-sm-block"></div>
+            <div class="flex-fill kora-stat-block">
+                <div class="text-muted small text-uppercase fw-semibold">Registered POS Devices</div>
+                <div class="h4 fw-bold text-dark mb-0"><?= (int) ($stats['pos_device_count'] ?? 0) ?></div>
+                <div class="text-muted small"><?= (int) ($stats['pos_device_active_count'] ?? 0) ?> active in this school</div>
+            </div>
+        </div>
+    </div>
+</div>
         </div>
 
         <!-- Channel Utilization + Defaulter Heatmap -->
@@ -709,10 +727,11 @@ foreach ($reconciliationByChannel as $row) {
         height: 100% !important;
         display: block;
     }
-    .kora-heatmap-scroll {
+    /* .kora-heatmap-scroll {
+        
         max-height: 420px;
         overflow-y: auto;
-    }
+    } */
 
     .kora-tx-card:last-child {
         border-bottom: none !important;

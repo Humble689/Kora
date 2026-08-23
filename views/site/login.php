@@ -32,8 +32,6 @@ use yii\bootstrap5\ActiveForm;
                             <div class="login-panel-overlay"></div>
 
                             <div class="login-panel-content">
-                                <div class="login-panel-content "></div>
-
                                 <div>
                                     <h2 class=" fw-bold mb-3">
                                         Welcome<br>Back
@@ -64,7 +62,7 @@ use yii\bootstrap5\ActiveForm;
                                 ) ?>
                             </div>
 
-                            <!-- Mobile Logo -->
+                            <!-- Mobile Logo (shown only below lg; the desktop brand block below covers lg+) -->
                             <div class="d-lg-none mb-4">
                                 <?= Html::img(
                                     Yii::getAlias('@web/images/logo.jpg'),
@@ -76,8 +74,8 @@ use yii\bootstrap5\ActiveForm;
                                 ) ?>
                             </div>
 
-                            <!-- Logo / Brand -->
-                            <div class="d-flex align-items-center mb-4 pb-1">
+                            <!-- Logo / Brand (desktop only — the block above already covers mobile) -->
+                            <div class="d-none d-lg-flex align-items-center mb-4 pb-1">
                                 <?= Html::img(
                                     Yii::getAlias('@web/images/logo.jpg'),
                                     [
@@ -233,7 +231,7 @@ use yii\bootstrap5\ActiveForm;
         width: 100%;
 
         background: #0f3a70;
-
+/* 
         background: -webkit-linear-gradient(
             to right,
             rgba(106, 17, 203, 1),
@@ -242,7 +240,9 @@ use yii\bootstrap5\ActiveForm;
 
         background: linear-gradient(
             to right,
-            rgba(106, 17, 203, 1),      );
+            rgba(106, 17, 203, 1),
+            rgba(37, 117, 252, 1)
+        ); */
     }
 
     .login-image-panel {
@@ -289,5 +289,14 @@ use yii\bootstrap5\ActiveForm;
     .login-back-btn:focus {
         color: #1657c1;
         border-color: rgba(31, 111, 235, 0.35);
+    }
+
+    @media (max-width: 575.98px) {
+        .card.shadow-lg {
+            border-radius: 0.75rem !important;
+        }
+        .p-4.p-md-5 {
+            padding: 1.5rem !important;
+        }
     }
 </style>

@@ -88,4 +88,6 @@ class Students extends \yii\db\ActiveRecord
         return $this->hasMany(Transactions::class, ['student_id' => 'id']);
     }
 
+    
+
 }

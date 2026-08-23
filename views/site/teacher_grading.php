@@ -41,6 +41,7 @@ function columnStatusMeta(string $status): array {
 ?>
 
 <div class="site-teacher-grading py-4">
+    <div class="tg-page-container">
 
     <div class="tg-page-header mb-4">
         <h1 class="tg-page-title mb-1"><i class="bi bi-journal-bookmark-fill"></i> Academic Assessment Grading Grid</h1>
@@ -116,8 +117,8 @@ function columnStatusMeta(string $status): array {
                     <span class="tg-toolbar-hint text-white"><i class="bi bi-info-circle-fill"></i> Check specific student rows to send partial grades, or commit all rows at once.</span>
                 </div>
                 <div class="col-12 col-md-6 text-md-end d-flex flex-wrap gap-2 justify-content-md-end">
-                    <button type="button" id="btnTeacherSubmitSelected" class="btn btn-sm tg-btn tg-btn-primary"><i class="bi bi-check-square-fill"></i> Submit Selected Rows</button>
-                    <button type="button" id="btnTeacherSubmitAll" class="btn btn-sm tg-btn tg-btn-primary-outline"><i class="bi bi-cloud-arrow-up-fill"></i> Submit All Rows</button>
+                    <button type="button" id="btnTeacherSubmitSelected" class="btn btn-sm tg-btn tg-btn-primary flex-fill flex-md-grow-0"><i class="bi bi-check-square-fill"></i> Submit Selected Rows</button>
+                    <button type="button" id="btnTeacherSubmitAll" class="btn btn-sm tg-btn tg-btn-primary-outline flex-fill flex-md-grow-0"><i class="bi bi-cloud-arrow-up-fill"></i> Submit All Rows</button>
                 </div>
             </div>
         </div>
@@ -127,8 +128,12 @@ function columnStatusMeta(string $status): array {
             <span class="small fw-bold tg-legend-label">Key:</span>
             <span class="d-flex align-items-center small tg-legend-item"><span class="bi bi-check-circle-fill text-success ms-1 me-1"></span>  Sealed</span>
             <span class="d-flex align-items-center small tg-legend-item"><span class="bi bi-hourglass-split text-secondary ms-1 me-1"></span> Pending Review</span>
-            <span class="d-flex align-items-center small tg-legend-item"><span class="lbi bi-x-circle-fill text-danger ms-1 me-1"></span> Rejected / Returned for Fix</span>
+            <span class="d-flex align-items-center small tg-legend-item"><span class="bi bi-x-circle-fill text-danger ms-1 me-1"></span> Rejected / Returned for Fix</span>
             <span class="d-flex align-items-center small tg-legend-item"><span class="legend-swatch cell-blank me-1"></span> Not Submitted</span>
+        </div>
+
+        <div class="tg-scroll-hint d-md-none mb-2">
+            <i class="bi bi-arrow-left-right"></i> Scroll sideways to see all score columns — name stays pinned.
         </div>
 
         <div class="card tg-table-card border-0 rounded-3 overflow-hidden mb-3">
@@ -137,9 +142,11 @@ function columnStatusMeta(string $status): array {
                     <thead>
                         <tr>
                         <?php if ($showDosFeedbackColumn): ?>
-                            <th class="text-center" style="width: 3%;">No</th>
-                            <th class="text-center" style="width: 4%;">Select</th>
-                            <th class="ps-4" style="width: 18%;">Student Full Name</th>
+                            <th class="text-center tg-sticky-col tg-sticky-col-1" style="width: 3%;">No</th>
+                            <th class="text-center tg-sticky-col tg-sticky-col-2" style="width: 4%;">
+                                <input type="checkbox" id="masterTeacherGridCheckboxSelector" class="form-check-input" title="Select all rows">
+                            </th>
+                            <th class="ps-4 tg-sticky-col tg-sticky-col-3" style="width: 18%;">Student Full Name</th>
                             <th class="text-center" style="width: 7%;">BOT (20%)</th>
                             <th class="text-center" style="width: 7%;">MOT (30%)</th>
                             <th class="text-center" style="width: 7%;">EOT (50%)</th>
@@ -147,9 +154,11 @@ function columnStatusMeta(string $status): array {
                             <th class="pe-4" style="width: 25%;">Teacher Remarks &amp; Comments</th>
                             <th class="text-center" style="width: 22%;">DOS Comment</th>
                         <?php else: ?>
-                            <th class="text-center" style="width: 3%;">No</th>
-                            <th class="text-center" style="width: 4%;">Select</th>
-                            <th class="ps-3" style="width: 22%;">Student Full Name</th>
+                            <th class="text-center tg-sticky-col tg-sticky-col-1" style="width: 3%;">No</th>
+                            <th class="text-center tg-sticky-col tg-sticky-col-2" style="width: 4%;">
+                                <input type="checkbox" id="masterTeacherGridCheckboxSelector" class="form-check-input" title="Select all rows">
+                            </th>
+                            <th class="ps-3 tg-sticky-col tg-sticky-col-3" style="width: 22%;">Student Full Name</th>
                             <th class="text-center" style="width: 10%;">BOT (20%)</th>
                             <th class="text-center" style="width: 10%;">MOT (30%)</th>
                             <th class="text-center" style="width: 10%;">EOT (50%)</th>
@@ -189,35 +198,35 @@ function columnStatusMeta(string $status): array {
                             [$eotCellStyle, $eotCellClass, $eotIcon] = columnStatusMeta($eotStatus);
                         ?>
                             <tr>
-                                <td class="text-center tg-row-num"><?= $rowNum++ ?></td>
-                                <td class="text-center">
+                                <td class="text-center tg-row-num tg-sticky-col tg-sticky-col-1"><?= $rowNum++ ?></td>
+                                <td class="text-center tg-sticky-col tg-sticky-col-2">
                                     <?php if ($userRole === 'SCHOOL_ADMIN' || !$rowFullyLocked): ?>
                                         <input type="checkbox" name="selected_students[]" value="<?= $st->id ?>" class="form-check-input row-teacher-grid-checkbox">
                                     <?php else: ?>
                                         <i class="bi bi-lock-fill tg-locked-icon" title="Sealed and final"></i>
                                     <?php endif; ?>
                                 </td>
-                                <td class="ps-3 fw-semibold tg-student-name">
+                                <td class="ps-3 fw-semibold tg-student-name tg-sticky-col tg-sticky-col-3">
                                     <?= Html::encode(ucwords($st->name)) ?>
                                 </td>
 
                                 <td class="<?= $botCellClass ?>" style="<?= $botCellStyle ?>">
                                     <div class="d-flex align-items-center">
-                                        <input type="text" name="Scores[<?= $st->id ?>][bot]" value="<?= $mBot ?>" <?= $disableBot ?> min="0" max="100" class="form-control form-control-sm text-center grading-input-score" data-weight="0.2" data-col="bot" data-row="<?= $st->id ?>">
+                                        <input type="number" inputmode="decimal" name="Scores[<?= $st->id ?>][bot]" value="<?= $mBot ?>" <?= $disableBot ?> min="0" max="100" step="0.01" class="form-control form-control-sm text-center grading-input-score" data-weight="0.2" data-col="bot" data-row="<?= $st->id ?>">
                                         <?= $botIcon ?>
                                     </div>
                                     <input type="hidden" name="Scores[<?= $st->id ?>][bot_touched]" id="botTouched<?= $st->id ?>" value="0">
                                 </td>
                                 <td class="<?= $motCellClass ?>" style="<?= $motCellStyle ?>">
                                     <div class="d-flex align-items-center">
-                                        <input type="text" name="Scores[<?= $st->id ?>][mot]" value="<?= $mMot ?>" <?= $disableMot ?> min="0" max="100" class="form-control form-control-sm text-center grading-input-score" data-weight="0.3" data-col="mot" data-row="<?= $st->id ?>">
+                                        <input type="number" inputmode="decimal" name="Scores[<?= $st->id ?>][mot]" value="<?= $mMot ?>" <?= $disableMot ?> min="0" max="100" step="0.01" class="form-control form-control-sm text-center grading-input-score" data-weight="0.3" data-col="mot" data-row="<?= $st->id ?>">
                                         <?= $motIcon ?>
                                     </div>
                                     <input type="hidden" name="Scores[<?= $st->id ?>][mot_touched]" id="motTouched<?= $st->id ?>" value="0">
                                 </td>
                                 <td class="<?= $eotCellClass ?>" style="<?= $eotCellStyle ?>">
                                     <div class="d-flex align-items-center">
-                                        <input type="text" name="Scores[<?= $st->id ?>][eot]" value="<?= $mEot ?>" <?= $disableEot ?> min="0" max="100" class="form-control form-control-sm text-center grading-input-score" data-weight="0.5" data-col="eot" data-row="<?= $st->id ?>">
+                                        <input type="number" inputmode="decimal" name="Scores[<?= $st->id ?>][eot]" value="<?= $mEot ?>" <?= $disableEot ?> min="0" max="100" step="0.01" class="form-control form-control-sm text-center grading-input-score" data-weight="0.5" data-col="eot" data-row="<?= $st->id ?>">
                                         <?= $eotIcon ?>
                                     </div>
                                     <input type="hidden" name="Scores[<?= $st->id ?>][eot_touched]" id="eotTouched<?= $st->id ?>" value="0">
@@ -253,6 +262,8 @@ function columnStatusMeta(string $status): array {
             <strong>No active assignments found!</strong> You are not currently assigned to teach any subjects for the chosen filter configuration.
         </div>
     <?php endif; ?>
+
+    </div>
 </div>
 
 <script>
@@ -379,6 +390,13 @@ document.addEventListener("DOMContentLoaded", function() {
         min-height: 100vh;
     }
 
+    .tg-page-container {
+        max-width: 96rem;
+        margin: 0 auto;
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
     /* ===== Header ===== */
     .tg-page-title {
         color: var(--kora-ink);
@@ -454,6 +472,7 @@ document.addEventListener("DOMContentLoaded", function() {
     .tg-search-wrap {
         position: relative;
         min-width: 260px;
+        flex: 1 1 260px;
     }
 
     .tg-search-wrap i {
@@ -467,6 +486,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
     .tg-search-wrap .form-control {
         padding-left: 2rem;
+        width: 100%;
     }
 
     /* ===== Toolbar ===== */
@@ -542,6 +562,15 @@ document.addEventListener("DOMContentLoaded", function() {
     .legend-swatch.cell-rejected { background-color: #fbe6e8; }
     .legend-swatch.cell-blank    { background-color: #ffffff; }
 
+    .tg-scroll-hint {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        font-size: 0.75rem;
+        color: var(--kora-muted);
+        font-weight: 600;
+    }
+
     /* ===== Table ===== */
     #teacherGradingTable thead th {
         background: var(--kora-blue-900);
@@ -555,6 +584,7 @@ document.addEventListener("DOMContentLoaded", function() {
         position: sticky;
         top: 0;
         z-index: 2;
+        white-space: nowrap;
     }
 
     #teacherGradingTable tbody td {
@@ -616,6 +646,7 @@ document.addEventListener("DOMContentLoaded", function() {
         background-color: transparent !important;
         border: 1px solid var(--kora-border);
         border-radius: 6px;
+        min-width: 3.5rem;
     }
 
     #teacherGradingTable td .grading-input-score:focus {
@@ -630,6 +661,29 @@ document.addEventListener("DOMContentLoaded", function() {
     .form-check-input:checked {
         background-color: var(--kora-blue-accent) !important;
         border-color: var(--kora-blue-accent) !important;
+    }
+
+    /* Pin No / Select / Name columns while scrolling horizontally on small screens */
+    @media (max-width: 767.98px) {
+        .tg-sticky-col {
+            position: sticky;
+            background: #fff;
+            z-index: 1;
+        }
+        thead .tg-sticky-col {
+            z-index: 3;
+            background: var(--kora-blue-900);
+        }
+        #teacherGradingTable tbody tr:nth-child(even) .tg-sticky-col {
+            background: #fafbfd;
+        }
+        .tg-sticky-col-1 { left: 0; min-width: 2.2rem; }
+        .tg-sticky-col-2 { left: 2.2rem; min-width: 2.6rem; }
+        .tg-sticky-col-3 {
+            left: 4.8rem;
+            min-width: 9rem;
+            box-shadow: 2px 0 4px rgba(0,0,0,0.06);
+        }
     }
 
     /* ===== Empty state ===== */
