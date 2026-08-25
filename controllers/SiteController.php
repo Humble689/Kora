@@ -951,8 +951,7 @@ public function actionProcessPayment()
 
         $ledger = new Transactions();
         $ledger->student_id = $student->id;
-        $ledger->school_id = $student->school_id;
-        $ledger->device_id = $device->school_id;
+        $ledger->school_id = $device->school_id; // = School A, whoever owns the terminal that rang up the sale        $ledger->device_id = $device->school_id;
         $ledger->amount = $chargeAmount;
         $ledger->transaction_type = 'CANTEEN_SPEND';
         $ledger->payment_channel = 'CANTEEN_POS';
