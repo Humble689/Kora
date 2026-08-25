@@ -35,6 +35,3 @@ tests/_support/_generated
 #vagrant folder
 /.vagrant
 
-/.@12' psql -P pager=off -h localhost -U postgres -d schoolpay -c "d+ academic_marks"
-/@12' psql -P pager=off -h localhost -U postgres -d schoolpay -c "d+ academic_marks"
-@12' psql -P pager=off -h localhost -U postgres -d schoolpay -c "d+ academic_marks"

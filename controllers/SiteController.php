@@ -41,100 +41,127 @@ class SiteController extends Controller
     }
 
    
-       
-    public function behaviors()
-    {
-        return [
-            'access' => [
-                'class' => \yii\filters\AccessControl::class,
-                'only' => [
-                    'bursar', 'register-student', 'edit-student', 'delete-student', 'mark-no-show', 
-                    'export-students', 'export-receipts', 'term-rollover','students-directory',
-                    'teacher-grading', 'submit-marks', 'dos-review', 'seal-marks', 'print-reports',
-                    'logout', 'signup',
-                ],
-                'rules' => [
-                    //  RULE 1: Super Admin Permissions
-                    [
-                        'actions' => ['super-admin', 'create-school', 'edit-school','school-admin', 'signup', 'bursar', 'dos-review', 'seal-marks', 
-                        'print-reports', 'manage-assignments','students-directory', 'delete-assignment', 'register-student', 'edit-student', 'delete-student', 
+  public function behaviors()
+{
+    return [
+        'access' => [
+            'class' => \yii\filters\AccessControl::class,
+            'only' => [
+                'bursar', 'register-student', 'edit-student', 'delete-student', 'mark-no-show',
+                'export-students', 'export-receipts', 'term-rollover', 'students-directory',
+                'teacher-grading', 'submit-marks', 'dos-review', 'seal-marks', 'print-reports',
+                'logout', 'signup',
+                'super-admin', 'create-school', 'edit-school', 'school-admin',
+                'manage-assignments', 'delete-assignment', 'register-device',
+                'reject-marks', 'bulk-moderate-marks', 'batch-print-reports',
+                'export-class-marks', 'wallet-adjust', 'void-transaction', 'batch-invoice',
+                'expense-claims', 'expense-claims-create',
+                'students-by-class', 'class-list', 'class-student-count',
+                'switch-school', 'clear-school-context', 'school-registry',
+            ],
+            'rules' => [
+                //  RULE 1: Super Admin Permissions
+                [
+                    'actions' => [
+                        'super-admin', 'school-registry', 'create-school', 'edit-school', 'school-admin', 'signup', 'bursar',
+                        'dos-review', 'seal-marks', 'print-reports', 'manage-assignments', 'students-directory',
+                        'delete-assignment', 'register-student', 'edit-student', 'delete-student',
                         'mark-no-show', 'export-students', 'export-receipts', 'term-rollover',
-                        'bursar', 'register-student', 'edit-student', 'delete-student', 'mark-no-show', 'export-students', 'export-receipts', 
-                       'teacher-grading', 'submit-marks', 'print-reports', 'manage-assignments', 'delete-assignment'],
-                        'allow' => true,
-                        'roles' => ['@'],
-                        'matchCallback' => function ($rule, $action) {
-                            return !Yii::$app->user->isGuest && Yii::$app->user->identity->role === 'SUPER_ADMIN';
-                        }
+                        'teacher-grading', 'submit-marks',
+                        'register-device', 'reject-marks', 'bulk-moderate-marks', 'batch-print-reports',
+                        'export-class-marks', 'wallet-adjust', 'void-transaction', 'batch-invoice',
+                        'expense-claims', 'expense-claims-create',
+                        'students-by-class', 'class-list', 'class-student-count',
+                        'switch-school', 'clear-school-context',
                     ],
-                    //  RULE 2: Bursar Accounting Permissions
-                    [
-                        'actions' => ['school-admin', 'signup', 'bursar', 'dos-review', 'seal-marks', 'print-reports', 'manage-assignments','students-directory', 'delete-assignment', 'register-student', 'edit-student', 'delete-student', 'mark-no-show', 'export-students', 'export-receipts', 'term-rollover'],
-                        'allow' => true,
-                        'roles' => ['@'],
-                        'matchCallback' => function ($rule, $action) {
-                            return !Yii::$app->user->isGuest && Yii::$app->user->identity->role === 'SCHOOL_ADMIN';
-                        }
-                    ],
-                    //  RULE 3: Legacy Bursar Accounting (Keep intact)
-                    [
-                        'actions' => ['bursar', 'register-student', 'edit-student', 'delete-student', 'mark-no-show', 'export-students', 'export-receipts', 'term-rollover','students-directory',],
-                        'allow' => true,
-                        'roles' => ['@'],
-                        'matchCallback' => function ($rule, $action) {
-                            return !Yii::$app->user->isGuest && Yii::$app->user->identity->role === 'BURSAR';
-                        }
-                    ],
-                    //  RULE 4: Legacy Teacher
-                    [
-                        'actions' => ['teacher-grading', 'submit-marks',],
-                        'allow' => true,
-                        'roles' => ['@'],
-                        'matchCallback' => function ($rule, $action) {
-                            return !Yii::$app->user->isGuest && Yii::$app->user->identity->role === 'TEACHER';
-                        }
-                    ],
-
-
-                    //  RULE 5: Legacy Director of Studies (DOS) Academic Moderation (Keep intact)
-                    [
-                        'actions' => ['dos-review', 'seal-marks', 'print-reports', 'manage-assignments', 'delete-assignment'],
-                        'allow' => true,
-                        'roles' => ['@'],
-                        'matchCallback' => function ($rule, $action) {
-                            return !Yii::$app->user->isGuest && Yii::$app->user->identity->role === 'DOS';
-                        }
-                    ],
-
-                    [
-                        'actions' => ['logout'],
-                        'allow' => true,
-                        'roles' => ['@'],
-                    ],
-                    [
-                        'actions' => ['signup'],
-                        'allow' => true,
-                        'roles' => ['?'],
-                    ],
+                    'allow' => true,
+                    'roles' => ['@'],
+                    'matchCallback' => function ($rule, $action) {
+                        return !Yii::$app->user->isGuest && Yii::$app->user->identity->role === 'SUPER_ADMIN';
+                    }
                 ],
-                'denyCallback' => function ($rule, $action) {
-                    Yii::$app->session->setFlash('error', 'Access Denied: Insufficient authorization privileges for this desk.');
-                    return Yii::$app->response->redirect(['site/login']);
-                },
-            ],
-            'verbs' => [
-                'class' => \yii\filters\VerbFilter::class,
-                'actions' => [
-                    'logout' => ['post'],
-                    'process-payment' => ['post'],
-                    'submit-marks' => ['post'], 
-                    'seal-marks' => ['post'],
+
+                //  RULE 2: Bursar Accounting Permissions
+                [
+                    'actions' => [
+                        'school-admin', 'signup', 'bursar', 'dos-review', 'seal-marks', 'print-reports',
+                        'manage-assignments', 'students-directory', 'delete-assignment', 'register-student',
+                        'edit-student', 'delete-student', 'mark-no-show', 'export-students', 'export-receipts',
+                        'term-rollover',
+                        'register-device', 'bulk-moderate-marks', 'batch-print-reports', 'export-class-marks',
+                        'wallet-adjust', 'void-transaction', 'batch-invoice',
+                        'expense-claims', 'expense-claims-create',
+                        'students-by-class', 'class-list', 'class-student-count',
+                    ],
+                    'allow' => true,
+                    'roles' => ['@'],
+                    'matchCallback' => function ($rule, $action) {
+                        return !Yii::$app->user->isGuest && Yii::$app->user->identity->role === 'SCHOOL_ADMIN';
+                    }
+                ],
+                //  RULE 3: Legacy Bursar Accounting (Keep intact)
+                [
+                    'actions' => [
+                        'bursar', 'register-student', 'edit-student', 'delete-student', 'mark-no-show',
+                        'export-students', 'export-receipts', 'term-rollover', 'students-directory',
+                        'export-class-marks', 'wallet-adjust', 'void-transaction', 'batch-invoice',
+                        'expense-claims', 'expense-claims-create',
+                        'students-by-class', 'class-list', 'class-student-count',
+                    ],
+                    'allow' => true,
+                    'roles' => ['@'],
+                    'matchCallback' => function ($rule, $action) {
+                        return !Yii::$app->user->isGuest && Yii::$app->user->identity->role === 'BURSAR';
+                    }
+                ],
+                //  RULE 4: Legacy Teacher
+                [
+                    'actions' => ['teacher-grading', 'submit-marks'],
+                    'allow' => true,
+                    'roles' => ['@'],
+                    'matchCallback' => function ($rule, $action) {
+                        return !Yii::$app->user->isGuest && Yii::$app->user->identity->role === 'TEACHER';
+                    }
+                ],
+                //  RULE 5: Legacy Director of Studies (DOS) Academic Moderation (Keep intact)
+                [
+                    'actions' => [
+                        'dos-review', 'seal-marks', 'print-reports', 'manage-assignments', 'delete-assignment',
+                        'signup', 'reject-marks', 'bulk-moderate-marks', 'batch-print-reports',
+                    ],
+                    'allow' => true,
+                    'roles' => ['@'],
+                    'matchCallback' => function ($rule, $action) {
+                        return !Yii::$app->user->isGuest && Yii::$app->user->identity->role === 'DOS';
+                    }
+                ],
+                [
+                    'actions' => ['logout'],
+                    'allow' => true,
+                    'roles' => ['@'],
+                ],
+                [
+                    'actions' => ['signup'],
+                    'allow' => true,
+                    'roles' => ['?'],
                 ],
             ],
-        ];
-    }
-
-
+            'denyCallback' => function ($rule, $action) {
+                Yii::$app->session->setFlash('error', 'Access Denied: Insufficient authorization privileges for this desk.');
+                return Yii::$app->response->redirect(['site/login']);
+            },
+        ],
+        'verbs' => [
+            'class' => \yii\filters\VerbFilter::class,
+            'actions' => [
+                'logout' => ['post'],
+                'process-payment' => ['post'],
+                'submit-marks' => ['post'],
+                'seal-marks' => ['post'],
+            ],
+        ],
+    ];
+}
 
 
 
@@ -157,6 +184,94 @@ class SiteController extends Controller
     }
 
     /**
+     * Effective school context for the current request.
+     * SUPER_ADMIN uses session-selected working school; other roles use identity->school_id.
+     */
+    private function getWorkingSchoolId(): ?int
+    {
+        $user = Yii::$app->user->identity;
+        if (!$user) {
+            return null;
+        }
+
+        if ($user->role === 'SUPER_ADMIN') {
+            $id = Yii::$app->session->get('super_admin_school_id');
+            return ($id !== null && $id !== '') ? (int) $id : null;
+        }
+
+        return $user->school_id !== null ? (int) $user->school_id : null;
+    }
+
+    private function getWorkingSchool(): ?Schools
+    {
+        $id = $this->getWorkingSchoolId();
+        return $id ? Schools::findOne($id) : null;
+    }
+
+    /**
+     * Redirect Super Admin to school registry when no working school is selected.
+     */
+    private function requireWorkingSchoolId(): ?int
+    {
+        $schoolId = $this->getWorkingSchoolId();
+        if ($schoolId === null && !Yii::$app->user->isGuest && Yii::$app->user->identity->role === 'SUPER_ADMIN') {
+            Yii::$app->session->setFlash(
+                'error',
+                'Select a school first from Master School Registry (Switch into school).'
+            );
+            Yii::$app->response->redirect(['site/super-admin']);
+            Yii::$app->end();
+        }
+        return $schoolId;
+    }
+
+    /**
+     * Super Admin: enter / switch school context.
+     */
+    public function actionSwitchSchool($id)
+    {
+        if (Yii::$app->user->isGuest || Yii::$app->user->identity->role !== 'SUPER_ADMIN') {
+            throw new \yii\web\ForbiddenHttpException('Only Super Admin can switch school context.');
+        }
+
+        $school = Schools::findOne((int) $id);
+        if (!$school) {
+            Yii::$app->session->setFlash('error', 'School not found.');
+            return $this->redirect(['site/super-admin']);
+        }
+
+        Yii::$app->session->set('super_admin_school_id', (int) $school->id);
+        Yii::$app->session->setFlash(
+            'success',
+            'Now working in: ' . Html::encode($school->name)
+        );
+
+        $referrer = Yii::$app->request->referrer;
+        if ($referrer && str_contains($referrer, Yii::$app->request->hostInfo)) {
+            // Avoid redirect loops back onto switch-school itself
+            if (!str_contains($referrer, 'switch-school')) {
+                return $this->redirect($referrer);
+            }
+        }
+
+        return $this->redirect(['site/bursar']);
+    }
+
+    /**
+     * Super Admin: clear working school context (platform-only view).
+     */
+    public function actionClearSchoolContext()
+    {
+        if (Yii::$app->user->isGuest || Yii::$app->user->identity->role !== 'SUPER_ADMIN') {
+            throw new \yii\web\ForbiddenHttpException();
+        }
+
+        Yii::$app->session->remove('super_admin_school_id');
+        Yii::$app->session->setFlash('success', 'School context cleared. Platform view only.');
+        return $this->redirect(['site/super-admin']);
+    }
+
+    /**
      * @return string
      */
      public function actionIndex()
@@ -166,6 +281,7 @@ class SiteController extends Controller
             'model' => $model,
         ]);
     }
+
 
    
     public function actionLogin()
@@ -311,12 +427,13 @@ class SiteController extends Controller
 
    public function actionBursar()
 {
-    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN','SUPER_ADMIN'])) {
         return $this->redirect(['site/login']);
     }
 
-    $userSchoolId = Yii::$app->user->identity->school_id;
+    $userSchoolId = $this->requireWorkingSchoolId();
     $request = Yii::$app->request;
+
 
     $stats = [
         'total_tuition'     => (float) Transactions::find()->joinWith('student')->where(['transaction_type' => 'TUITION', 'students.school_id' => $userSchoolId])->sum('amount'),
@@ -355,10 +472,10 @@ $stats['settlement_gap'] = $stats['network_cleared'] - $stats['bank_settled'];
         ->sum('amount');
 
     $stats['canteen_total_collected'] = (float) Transactions::find()
-    ->where(['transaction_type' => 'CANTEEN_SPEND', 'status' => 'SUCCESS'])
+    ->where(['transaction_type' => 'CANTEEN_SPEND', 'status' => 'SUCCESS', 'school_id' => $userSchoolId])
     ->sum('amount');
 
-    $schoolId = Yii::$app->user->identity->school_id;
+    $schoolId = $userSchoolId;
 
 $stats['pos_device_count'] = (int) PosDevices::find()
     ->where(['school_id' => $schoolId])
@@ -368,8 +485,9 @@ $stats['pos_device_active_count'] = (int) PosDevices::find()
     ->where(['school_id' => $schoolId, 'status' => 'ACTIVE'])
     ->count();
 
+
     $stats['canteen_today_collected'] = (float) Transactions::find()
-    ->where(['transaction_type' => 'CANTEEN_SPEND', 'status' => 'SUCCESS'])
+    ->where(['transaction_type' => 'CANTEEN_SPEND', 'status' => 'SUCCESS', 'school_id' => $userSchoolId])
     ->andWhere(['between', 'created_at', date('Y-m-d 00:00:00'), date('Y-m-d 23:59:59')])
     ->sum('amount');
 
@@ -395,7 +513,8 @@ $stats['net_available_tuition'] = $stats['total_tuition'] - $stats['total_approv
     ->asArray()
     ->all();
 
-    $currentTermId = Yii::$app->user->identity->school->current_term_id ?? null;
+    $workingSchool = $this->getWorkingSchool();
+    $currentTermId = $workingSchool->current_term_id ?? null;
     $collectionVelocity = $this->buildCollectionVelocitySeries($userSchoolId, $currentTermId);
 
     $txSearchKeyword = trim($request->get('tx_q', ''));
@@ -432,6 +551,7 @@ $txQuery = Transactions::find()
     'stats' => $stats,
     'channelBreakdown' => $channelBreakdown,
     'reconciliationByChannel' => $reconciliationByChannel,
+    'workingSchool' => $this->getWorkingSchool(),
     'settlementRelevantChannels' => $settlementRelevantChannels,
     'defaulterHeatmap' => $defaulterHeatmap,
     'collectionVelocity' => $collectionVelocity,
@@ -478,11 +598,11 @@ private function buildCollectionVelocitySeries($schoolId, $currentTermId = null)
 
  public function actionStudentsDirectory()
 {
-    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN','SUPER_ADMIN'])) {
         return $this->redirect(['site/login']);
     }
 
-    $userSchoolId = Yii::$app->user->identity->school_id;
+    $userSchoolId = $this->requireWorkingSchoolId();
     $request = Yii::$app->request;
 
     $searchKeyword = trim($request->get('q', ''));
@@ -555,13 +675,19 @@ public function actionRegisterDevice()
     $model = new PosDevices();
     $model->status = 'ACTIVE';
 
-    // Non-super-admins can only register devices for their own school
+    // Non-super-admins can only register devices for their own school.
+    // Super admin defaults to the current working school when one is selected.
     if ($currentUser->role !== 'SUPER_ADMIN') {
         $model->school_id = $currentUser->school_id;
+    } else {
+        $workingId = $this->getWorkingSchoolId();
+        if ($workingId !== null) {
+            $model->school_id = $workingId;
+        }
     }
 
     if ($model->load(Yii::$app->request->post())) {
-        // Re-lock school_id server-side regardless of what was posted
+        // Re-lock school_id server-side for non-super-admins
         if ($currentUser->role !== 'SUPER_ADMIN') {
             $model->school_id = $currentUser->school_id;
         }
@@ -573,12 +699,17 @@ public function actionRegisterDevice()
     }
 
     $schools = ($currentUser->role === 'SUPER_ADMIN')
-        ? \yii\helpers\ArrayHelper::map(Schools::find()->all(), 'id', 'name')
+        ? \yii\helpers\ArrayHelper::map(Schools::find()->orderBy(['name' => SORT_ASC])->all(), 'id', 'name')
         : null;
 
     $devicesQuery = PosDevices::find()->orderBy(['created_at' => SORT_DESC]);
     if ($currentUser->role !== 'SUPER_ADMIN') {
         $devicesQuery->andWhere(['school_id' => $currentUser->school_id]);
+    } else {
+        $workingId = $this->getWorkingSchoolId();
+        if ($workingId !== null) {
+            $devicesQuery->andWhere(['school_id' => $workingId]);
+        }
     }
     $devices = $devicesQuery->all();
 
@@ -821,7 +952,7 @@ public function actionProcessPayment()
         $ledger = new Transactions();
         $ledger->student_id = $student->id;
         $ledger->school_id = $student->school_id;
-        $ledger->device_id = $device->id;
+        $ledger->device_id = $device->school_id;
         $ledger->amount = $chargeAmount;
         $ledger->transaction_type = 'CANTEEN_SPEND';
         $ledger->payment_channel = 'CANTEEN_POS';
@@ -855,15 +986,19 @@ public function actionProcessPayment()
 
 
 
-
 public function actionCanteenTransactions()
 {
     $searchQuery = trim((string) Yii::$app->request->get('q', ''));
 
+    $currentSchoolId = $this->requireWorkingSchoolId();
+
     $query = Transactions::find()
         ->alias('t')
         ->joinWith(['student', 'school', 'device'])
-        ->where(['t.transaction_type' => 'CANTEEN_SPEND']);
+        ->where([
+            't.transaction_type' => 'CANTEEN_SPEND',
+            't.school_id' => $currentSchoolId,
+        ]);
 
     if ($searchQuery !== '') {
         $like = '%' . strtr($searchQuery, ['%' => '\%', '_' => '\_']) . '%';
@@ -897,6 +1032,7 @@ public function actionCanteenTransactions()
     return $this->render('canteen-transactions', [
         'dataProvider' => $dataProvider,
         'searchQuery' => $searchQuery,
+        'currentSchoolId' => $currentSchoolId,
     ]);
 }
 
@@ -962,7 +1098,30 @@ public function actionCanteenTransactions()
 
     public function actionSuperAdmin()
     {
-        $schools = Schools::find()->all();
+        if (Yii::$app->user->isGuest || Yii::$app->user->identity->role !== 'SUPER_ADMIN') {
+            return $this->redirect(['site/login']);
+        }
+
+        $schools = Schools::find()->orderBy(['name' => SORT_ASC])->all();
+        return $this->render('super_admin', ['schools' => $schools]);
+    }
+
+    /**
+     * Alias used by sidebar link site/school-registry.
+     * Renders the same registry list as super-admin (use school-registry.php or super_admin.php).
+     */
+    public function actionSchoolRegistry()
+    {
+        if (Yii::$app->user->isGuest || Yii::$app->user->identity->role !== 'SUPER_ADMIN') {
+            return $this->redirect(['site/login']);
+        }
+
+        $schools = Schools::find()->orderBy(['name' => SORT_ASC])->all();
+        // Prefer dedicated school-registry view if present; fall back to super_admin.
+        $viewFile = Yii::getAlias('@app/views/site/school-registry.php');
+        if (is_file($viewFile)) {
+            return $this->render('school-registry', ['schools' => $schools]);
+        }
         return $this->render('super_admin', ['schools' => $schools]);
     }
 
@@ -1046,12 +1205,12 @@ public function actionCanteenTransactions()
 
 public function actionRegisterStudent()
 {
-    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN','SUPER_ADMIN'])) {
         Yii::$app->session->setFlash('error', 'Unauthorized administrative access level clearance.');
         return $this->redirect(['site/login']);
     }
 
-    $userSchoolId = Yii::$app->user->identity->school_id;
+    $userSchoolId = $this->requireWorkingSchoolId();
     $school = Schools::findOne($userSchoolId);
 
     if (!$school) {
@@ -1170,7 +1329,7 @@ public function actionRegisterStudent()
     
     public function actionEditStudent($id)
     {
-        $userSchoolId = Yii::$app->user->identity->school_id;
+        $userSchoolId = $this->requireWorkingSchoolId();
         
         $model = Students::findOne(['id' => $id, 'school_id' => $userSchoolId]);
         if (!$model) {
@@ -1194,11 +1353,11 @@ public function actionRegisterStudent()
  
     public function actionExportStudents()
     {
-        if (Yii::$app->user->isGuest || Yii::$app->user->identity->role !== 'BURSAR') {
+        if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'], true)) {
             throw new \yii\web\ForbiddenHttpException();
         }
 
-        $userSchoolId = Yii::$app->user->identity->school_id;
+        $userSchoolId = $this->requireWorkingSchoolId();
         $request = Yii::$app->request;
         
         $q = trim($request->get('q', ''));
@@ -1232,11 +1391,11 @@ public function actionRegisterStudent()
     
     public function actionExportReceipts()
     {
-        if (Yii::$app->user->isGuest || Yii::$app->user->identity->role !== 'BURSAR') {
+        if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'], true)) {
             throw new \yii\web\ForbiddenHttpException();
         }
 
-        $userSchoolId = Yii::$app->user->identity->school_id;
+        $userSchoolId = $this->requireWorkingSchoolId();
         $tx_q = trim(Yii::$app->request->get('tx_q', ''));
 
         $query = Transactions::find()->joinWith('student')->where(['students.school_id' => $userSchoolId]);
@@ -1262,12 +1421,12 @@ public function actionRegisterStudent()
       
     public function actionDeleteStudent($id)
     {
-       if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+       if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
             Yii::$app->session->setFlash('error', 'Unauthorized administrative access level clearance.');
             return $this->redirect(['site/login']);
         }
 
-        $userSchoolId = Yii::$app->user->identity->school_id;
+        $userSchoolId = $this->requireWorkingSchoolId();
 
         $student = Students::findOne(['id' => $id, 'school_id' => $userSchoolId]);
         if (!$student) {
@@ -1309,10 +1468,10 @@ public function actionRegisterStudent()
     {
        $identity = Yii::$app->user->identity;
 
-    if (Yii::$app->user->isGuest || !in_array($identity->role, ['BURSAR', 'SCHOOL_ADMIN'], true)) {
+    if (Yii::$app->user->isGuest || !in_array($identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'], true)) {
         throw new \yii\web\ForbiddenHttpException();}
 
-        $userSchoolId = Yii::$app->user->identity->school_id;
+        $userSchoolId = $this->requireWorkingSchoolId();
 
         $student = Students::findOne(['id' => $id, 'school_id' => $userSchoolId]);
         if (!$student) {
@@ -1349,11 +1508,11 @@ public function actionRegisterStudent()
     {
            $identity = Yii::$app->user->identity;
 
-    if (Yii::$app->user->isGuest || !in_array($identity->role, ['BURSAR', 'SCHOOL_ADMIN'], true)) {
+    if (Yii::$app->user->isGuest || !in_array($identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'], true)) {
         throw new \yii\web\ForbiddenHttpException();
         }
 
-        $userSchoolId = Yii::$app->user->identity->school_id;
+        $userSchoolId = $this->requireWorkingSchoolId();
         $school = Schools::findOne($userSchoolId);
 
         if (!$school) {
@@ -1391,12 +1550,12 @@ public function actionRegisterStudent()
     
     public function actionTeacherGrading()
     {
-        if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['TEACHER', 'SCHOOL_ADMIN'])) {
+        if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['TEACHER', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
             return $this->redirect(['site/login']);
         }
 
         $teacherId = Yii::$app->user->identity->id;
-        $schoolId = Yii::$app->user->identity->school_id;
+        $schoolId = $this->requireWorkingSchoolId();
         $request = Yii::$app->request;
 
         $assignments = Yii::$app->db->createCommand(
@@ -1489,11 +1648,11 @@ public function actionSubmitMarks()
 {
     if (Yii::$app->request->isPost && !Yii::$app->user->isGuest) {
         $user = Yii::$app->user->identity;
-        if (!in_array($user->role, ['TEACHER', 'SCHOOL_ADMIN'])) {
+        if (!in_array($user->role, ['TEACHER', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
             throw new \yii\web\ForbiddenHttpException();
         }
 
-        $schoolId = $user->school_id;
+        $schoolId = $this->requireWorkingSchoolId();
         $postData = Yii::$app->request->post();
 
         $classLevel = $postData['class_level'] ?? '';
@@ -1581,7 +1740,7 @@ public function actionDosReview()
         return $this->redirect(['site/login']);
     }
 
-    $schoolId = Yii::$app->user->identity->school_id;
+    $schoolId = $this->requireWorkingSchoolId();
     $request = Yii::$app->request;
 
     $selectedClass   = $request->get('class_level', 'Senior 1');
@@ -1674,7 +1833,7 @@ public function actionDosReview()
     public function actionSealMarks()
     {
         if (Yii::$app->request->isPost && !Yii::$app->user->isGuest && in_array(Yii::$app->user->identity->role, ['DOS', 'SUPER_ADMIN','SCHOOL_ADMIN'])) {
-            $schoolId = Yii::$app->user->identity->school_id;
+            $schoolId = $this->requireWorkingSchoolId();
             $classLevel = Yii::$app->request->post('class_level');
             $subjectName = Yii::$app->request->post('subject_name');
             $term = Yii::$app->request->post('term');
@@ -1713,7 +1872,7 @@ public function actionDosReview()
             return $this->redirect(['site/login']);
         }
 
-        $schoolId = Yii::$app->user->identity->school_id;
+        $schoolId = $this->requireWorkingSchoolId();
 
         $teachers = User::find()
             ->where(['school_id' => $schoolId, 'role' => 'TEACHER'])
@@ -1752,7 +1911,7 @@ public function actionDosReview()
     public function actionDeleteAssignment($id)
     {
         if (Yii::$app->request->isPost && !Yii::$app->user->isGuest && in_array(Yii::$app->user->identity->role, ['DOS', 'SUPER_ADMIN','SCHOOL_ADMIN'])) {
-            $schoolId = Yii::$app->user->identity->school_id;
+            $schoolId = $this->requireWorkingSchoolId();
             
             Yii::$app->db->createCommand()
                 ->delete('teacher_assignments', 'id = :id AND school_id = :sid', [':id' => $id, ':sid' => $schoolId])
@@ -1771,7 +1930,7 @@ public function actionDosReview()
             return $this->redirect(['site/login']);
         }
 
-        $schoolId = Yii::$app->user->identity->school_id;
+        $schoolId = $this->requireWorkingSchoolId();
         $request = Yii::$app->request;
         
         $selectedClass = $request->get('class_level', 'Senior 1');
@@ -1796,7 +1955,7 @@ public function actionViewReportCard($id, $term = 'TERM_1')
         return $this->redirect(['site/login']);
     }
 
-    $schoolId = Yii::$app->user->identity->school_id;
+    $schoolId = $this->requireWorkingSchoolId();
     $academicYear = (int)date('Y');
 
     $student = Students::findOne(['id' => $id, 'school_id' => $schoolId]);
@@ -1878,8 +2037,8 @@ private function computePrimaryClassRanking(int $schoolId, string $classLevel, s
       
     public function actionRejectMarks()
     {
-        if (Yii::$app->request->isPost && !Yii::$app->user->isGuest && in_array(Yii::$app->user->identity->role, ['DOS', 'SUPER_ADMIN'])) {
-            $schoolId = Yii::$app->user->identity->school_id;
+        if (Yii::$app->request->isPost && !Yii::$app->user->isGuest && in_array(Yii::$app->user->identity->role, ['DOS','SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
+            $schoolId = $this->requireWorkingSchoolId();
             $request = Yii::$app->request;
             
             $classLevel = $request->post('class_level');
@@ -1920,11 +2079,11 @@ private function computePrimaryClassRanking(int $schoolId, string $classLevel, s
 
     public function actionSchoolAdmin()
     {
-        if (Yii::$app->user->isGuest || Yii::$app->user->identity->role !== 'SCHOOL_ADMIN') {
+        if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['SCHOOL_ADMIN', 'SUPER_ADMIN'], true)) {
             return $this->redirect(['site/login']);
         }
 
-        $schoolId = Yii::$app->user->identity->school_id;
+        $schoolId = $this->requireWorkingSchoolId();
         $school = Schools::findOne($schoolId);
 
         if (!$school) {
@@ -1968,7 +2127,7 @@ public function actionBulkModerateMarks()
         throw new \yii\web\ForbiddenHttpException();
     }
 
-    $schoolId = Yii::$app->user->identity->school_id;
+    $schoolId = $this->requireWorkingSchoolId();
     $userRole = Yii::$app->user->identity->role;
     $request = Yii::$app->request;
 
@@ -2098,7 +2257,7 @@ public function actionBatchPrintReports($class_level, $term = 'TERM_1')
         return $this->redirect(['site/login']);
     }
 
-    $schoolId = Yii::$app->user->identity->school_id;
+    $schoolId = $this->requireWorkingSchoolId();
     $academicYear = (int)date('Y');
 
     $students = \app\models\Students::find()
@@ -2182,11 +2341,11 @@ private function computePrimaryClassRankingMap(int $schoolId, string $classLevel
 }
     public function actionExportClassMarks($class_level, $term = 'TERM_1')
     {
-        if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'DOS', 'SCHOOL_ADMIN'])) {
+        if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'DOS', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
             throw new \yii\web\ForbiddenHttpException();
         }
 
-        $schoolId = Yii::$app->user->identity->school_id;
+        $schoolId = $this->requireWorkingSchoolId();
         $academicYear = (int)date('Y');
 
         $records = Yii::$app->db->createCommand(
@@ -2296,7 +2455,7 @@ public function actionSettings()
 
 public function actionWalletAdjust()
 {
-    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
         throw new \yii\web\ForbiddenHttpException();
     }
 
@@ -2307,7 +2466,7 @@ public function actionWalletAdjust()
         return $this->redirect(['site/bursar']);
     }
 
-    $student = Students::findOne(['id' => $studentId, 'school_id' => Yii::$app->user->identity->school_id]);
+    $student = Students::findOne(['id' => $studentId, 'school_id' => $this->requireWorkingSchoolId()]);
     if (!$student) {
         Yii::$app->session->setFlash('error', 'Student not found.');
         return $this->redirect(['site/bursar']);
@@ -2350,7 +2509,7 @@ public function actionWalletAdjust()
 
 public function actionVoidTransaction()
 {
-    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
         throw new \yii\web\ForbiddenHttpException();
     }
 
@@ -2362,7 +2521,7 @@ public function actionVoidTransaction()
     }
 
     $tx = Transactions::findOne($id);
-    if (!$tx || !$tx->student || $tx->student->school_id != Yii::$app->user->identity->school_id) {
+    if (!$tx || !$tx->student || (int) $tx->student->school_id !== (int) $this->requireWorkingSchoolId()) {
         Yii::$app->session->setFlash('error', 'Transaction not found.');
         return $this->redirect(['site/bursar']);
     }
@@ -2405,11 +2564,11 @@ public function actionVoidTransaction()
 
 public function actionBatchInvoice()
 {
-    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
         throw new \yii\web\ForbiddenHttpException();
     }
 
-    $schoolId = Yii::$app->user->identity->school_id;
+    $schoolId = $this->requireWorkingSchoolId();
 
     if (Yii::$app->request->isPost) {
         $classLevel = trim(Yii::$app->request->post('class_level', ''));
@@ -2465,8 +2624,12 @@ public function actionForcePosSync()
 
     $condition = ['status' => 'ACTIVE'];
 
-    // Scope to the user's own school unless they're a super admin
-    if ($identity->role !== 'SUPER_ADMIN') {
+    // Prefer working school context (session for SUPER_ADMIN, identity for others).
+    // If SUPER_ADMIN has no school selected, sync all active devices platform-wide.
+    $workingSchoolId = $this->getWorkingSchoolId();
+    if ($workingSchoolId !== null) {
+        $condition['school_id'] = $workingSchoolId;
+    } elseif ($identity->role !== 'SUPER_ADMIN') {
         $condition['school_id'] = $identity->school_id;
     }
 
@@ -2481,7 +2644,7 @@ public function actionForcePosSync()
 public function actionPrintReceipt($id)
 {
     $tx = Transactions::findOne($id);
-    if (!$tx || $tx->student->school_id != Yii::$app->user->identity->school_id) {
+    if (!$tx || !$tx->student || (int) $tx->student->school_id !== (int) $this->requireWorkingSchoolId()) {
         throw new \yii\web\NotFoundHttpException('Transaction not found.');
     }
 
@@ -2491,11 +2654,11 @@ public function actionPrintReceipt($id)
 
 public function actionExpenseClaims()
 {
-    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
         throw new \yii\web\ForbiddenHttpException();
     }
 
-    $schoolId = Yii::$app->user->identity->school_id;
+    $schoolId = $this->requireWorkingSchoolId();
     $pendingClaims = ExpenseClaims::find()->where(['school_id' => $schoolId, 'status' => 'PENDING'])->all();
 
     if (Yii::$app->request->isPost) {
@@ -2540,12 +2703,12 @@ public function actionExpenseClaims()
 
 public function actionExpenseClaimsCreate()
 {
-    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
         throw new \yii\web\ForbiddenHttpException();
     }
 
     if (Yii::$app->request->isPost) {
-        $schoolId = Yii::$app->user->identity->school_id;
+        $schoolId = $this->requireWorkingSchoolId();
 
         $claim = new ExpenseClaims();
         $claim->school_id = $schoolId;
@@ -2571,7 +2734,7 @@ public function actionStudentsByClass()
 {
     Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
 
-    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
         throw new \yii\web\ForbiddenHttpException();
     }
 
@@ -2583,7 +2746,7 @@ public function actionStudentsByClass()
     }
 
     $query = Students::find()
-        ->where(['school_id' => Yii::$app->user->identity->school_id, 'class_level' => $classLevel]);
+        ->where(['school_id' => $this->requireWorkingSchoolId(), 'class_level' => $classLevel]);
 
     if (!empty($search)) {
         $query->andWhere(['ilike', 'name', $search]);
@@ -2605,14 +2768,14 @@ public function actionClassList()
 {
     Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
 
-    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
         throw new \yii\web\ForbiddenHttpException();
     }
 
     $classes = Students::find()
         ->select('class_level')
         ->distinct()
-        ->where(['school_id' => Yii::$app->user->identity->school_id])
+        ->where(['school_id' => $this->requireWorkingSchoolId()])
         ->andWhere(['is not', 'class_level', null])
         ->orderBy(['class_level' => SORT_ASC])
         ->column();
@@ -2624,7 +2787,7 @@ public function actionClassStudentCount()
 {
     Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
 
-    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN'])) {
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
         throw new \yii\web\ForbiddenHttpException();
     }
 
@@ -2634,7 +2797,7 @@ public function actionClassStudentCount()
     }
 
     $count = Students::find()
-        ->where(['school_id' => Yii::$app->user->identity->school_id, 'class_level' => $classLevel])
+        ->where(['school_id' => $this->requireWorkingSchoolId(), 'class_level' => $classLevel])
         ->count();
 
     return ['count' => (int) $count];

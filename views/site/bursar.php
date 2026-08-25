@@ -67,8 +67,8 @@ foreach ($reconciliationByChannel as $row) {
         <!-- Header -->
         <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 border-bottom pb-3 gap-3">
             <div>
-                <h1 class="h3 fw-bold text-dark mb-0">
-                    <?= Yii::$app->user->identity->school ? Html::encode(Yii::$app->user->identity->school->name) : 'Financial Collections' ?> Control Centre
+               <h1 class="h3 fw-bold text-dark mb-0">
+                    <?= Html::encode($workingSchool->name ?? 'Financial Collections') ?> Control Centre
                 </h1>
                 <p class="text-muted small mb-0">Real-time ledger overview and cross-channel multi-tenant settlement audits.</p>
             </div>

@@ -27,7 +27,7 @@ $this->title = 'Onboard New Multi-Tenant Institution';
                 ],
             ]); ?>
                 
-                <h6 class="fw-bold text-primary mb-3 font-monospace uppercase tracking-wider"><i class="bi bi-building"></i> 1. Campus Identity & Settlement Details</h6>
+                <h6 class="fw-bold text-primary mb-3 uppercase tracking-wider"><i class="bi bi-building"></i> 1. Campus Identity & Settlement Details</h6>
                 <div class="row g-2 mb-3">
                     <div class="col-12 col-md-6">
                         <?= $form->field($model, 'name')->textInput(['placeholder' => 'e.g., Greenhill Academy'])->label('Institution Name') ?>
@@ -46,7 +46,7 @@ $this->title = 'Onboard New Multi-Tenant Institution';
                     </div>
                 </div>
 
-                <h6 class="fw-bold text-warning mb-3 font-monospace uppercase tracking-wider"><i class="bi bi-shield-lock-fill"></i> 2. Provision Master School Administrator Account</h6>
+                <h6 class="fw-bold text-warning mb-3 uppercase tracking-wider"><i class="bi bi-shield-lock-fill"></i> 2. Provision Master School Administrator Account</h6>
                 <div class="row g-2 mb-3 p-3 bg-light rounded rounded-3 border">
                     <div class="col-12 col-md-6">
                         <?= $form->field($model, 'admin_username')->textInput(['autocomplete' => 'off', 'placeholder' => 'e.g., greenhill_admin'])->label('Master Admin Username') ?>

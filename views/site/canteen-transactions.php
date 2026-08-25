@@ -21,7 +21,7 @@ $todayQuery = \app\models\Transactions::find()
 $todayCount = (clone $todayQuery)->count();
 $todayTotal = (float) (clone $todayQuery)->sum('amount');
 $allTimeTotal = (float) \app\models\Transactions::find()
-    ->where(['transaction_type' => 'CANTEEN_SPEND'])
+    ->where(['transaction_type' => 'CANTEEN_SPEND', 'school_id' => $currentSchoolId])
     ->sum('amount');
 ?>
 

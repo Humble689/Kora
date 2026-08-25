@@ -9,6 +9,12 @@ use yii\helpers\Html;
 use yii\helpers\Url;
 
 $this->title = 'Master SaaS Control Panel';
+
+$workingId = Yii::$app->session->get('super_admin_school_id');
+$workingSchool = null;
+if ($workingId) {
+    $workingSchool = \app\models\Schools::findOne((int) $workingId);
+}
 ?>
 
 <div class="site-school-registry bg-light py-4 min-vh-100">
@@ -25,6 +31,32 @@ $this->title = 'Master SaaS Control Panel';
             <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm rounded-3 mb-4" role="alert">
                 <i class="bi bi-exclamation-triangle-fill me-2"></i><?= Yii::$app->session->getFlash('error') ?>
                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        <?php endif; ?>
+
+        <?php if ($workingSchool): ?>
+            <div class="alert alert-info border-0 shadow-sm rounded-3 mb-3 d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
+                <div>
+                    <i class="bi bi-building me-2"></i>
+                    Working school: <strong><?= Html::encode($workingSchool->name) ?></strong>
+                    <span class="text-muted small ms-1">(#<?= (int) $workingSchool->id ?>)</span>
+                </div>
+                <div class="d-flex flex-wrap gap-2">
+                    <a href="<?= Url::toRoute(['site/bursar']) ?>" class="btn btn-sm btn-primary rounded-3">
+                        <i class="bi bi-receipt-cutoff me-1"></i> Open Collections Ledger
+                    </a>
+                    <a href="<?= Url::toRoute(['site/school-admin']) ?>" class="btn btn-sm btn-outline-primary rounded-3">
+                        Admin Dashboard
+                    </a>
+                    <a href="<?= Url::toRoute(['site/clear-school-context']) ?>" class="btn btn-sm btn-outline-secondary rounded-3">
+                        Clear context
+                    </a>
+                </div>
+            </div>
+        <?php else: ?>
+            <div class="alert alert-warning border-0 shadow-sm rounded-3 mb-3">
+                <i class="bi bi-info-circle me-2"></i>
+                No school selected. Use <strong>Switch into school</strong> on a row below to operate bursar / academic desks for that tenant.
             </div>
         <?php endif; ?>
 
@@ -45,7 +77,7 @@ $this->title = 'Master SaaS Control Panel';
                             <th>Settlement Account</th>
                             <th>Target Base Fees</th>
                             <th>Contact Email</th>
-                            <th>Actions</th>
+                            <th style="min-width: 220px;">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -58,14 +90,33 @@ $this->title = 'Master SaaS Control Panel';
                             </tr>
                         <?php else: ?>
                             <?php foreach ($schools as $school): ?>
-                                <tr>
-                                    <td><?= (int)$school->id ?></td>
-                                    <td class="fw-bold"><?= Html::encode($school->name) ?></td>
+                                <?php $isActive = $workingId !== null && (int) $workingId === (int) $school->id; ?>
+                                <tr class="<?= $isActive ? 'table-primary' : '' ?>">
+                                    <td><?= (int) $school->id ?></td>
+                                    <td class="fw-bold">
+                                        <?= Html::encode($school->name) ?>
+                                        <?php if ($isActive): ?>
+                                            <span class="badge bg-success ms-1">Working here</span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td class="font-monospace text-muted"><?= Html::encode($school->bank_account) ?></td>
-                                    <td class="font-monospace fw-bold text-success">UGX <?= number_format((float)$school->base_tuition_fees, 0) ?></td>
+                                    <td class="font-monospace fw-bold text-success">UGX <?= number_format((float) $school->base_tuition_fees, 0) ?></td>
                                     <td><?= Html::encode($school->contact_email) ?></td>
                                     <td>
-                                        <a href="<?= Url::toRoute(['site/edit-school', 'id' => $school->id]) ?>" class="btn btn-sm btn-outline-secondary py-0 px-2 rounded">Edit Specifications</a>
+                                        <div class="d-flex flex-wrap gap-1">
+                                            <?php if ($isActive): ?>
+                                                <span class="btn btn-sm btn-success py-0 px-2 rounded disabled">Working here</span>
+                                            <?php else: ?>
+                                                <a href="<?= Url::toRoute(['site/switch-school', 'id' => $school->id]) ?>"
+                                                   class="btn btn-sm btn-primary py-0 px-2 rounded">
+                                                    Switch into school
+                                                </a>
+                                            <?php endif; ?>
+                                            <a href="<?= Url::toRoute(['site/edit-school', 'id' => $school->id]) ?>"
+                                               class="btn btn-sm btn-outline-secondary py-0 px-2 rounded">
+                                                Edit Specifications
+                                            </a>
+                                        </div>
                                     </td>
                                 </tr>
                             <?php endforeach; ?>
@@ -83,10 +134,16 @@ $this->title = 'Master SaaS Control Panel';
                     </div>
                 <?php else: ?>
                     <?php foreach ($schools as $school): ?>
-                        <div class="kora-school-card border-bottom p-3">
+                        <?php $isActive = $workingId !== null && (int) $workingId === (int) $school->id; ?>
+                        <div class="kora-school-card border-bottom p-3 <?= $isActive ? 'bg-primary bg-opacity-10' : '' ?>">
                             <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-                                <div class="fw-bold text-dark"><?= Html::encode($school->name) ?></div>
-                                <span class="text-muted small text-nowrap">#<?= (int)$school->id ?></span>
+                                <div class="fw-bold text-dark">
+                                    <?= Html::encode($school->name) ?>
+                                    <?php if ($isActive): ?>
+                                        <span class="badge bg-success ms-1">Working here</span>
+                                    <?php endif; ?>
+                                </div>
+                                <span class="text-muted small text-nowrap">#<?= (int) $school->id ?></span>
                             </div>
 
                             <div class="small mb-1">
@@ -96,7 +153,7 @@ $this->title = 'Master SaaS Control Panel';
 
                             <div class="small mb-1">
                                 <span class="text-muted">Target Base Fees:</span>
-                                <span class="font-monospace fw-bold text-success">UGX <?= number_format((float)$school->base_tuition_fees, 0) ?></span>
+                                <span class="font-monospace fw-bold text-success">UGX <?= number_format((float) $school->base_tuition_fees, 0) ?></span>
                             </div>
 
                             <div class="small mb-3">
@@ -104,7 +161,20 @@ $this->title = 'Master SaaS Control Panel';
                                 <?= Html::encode($school->contact_email) ?>
                             </div>
 
-                            <a href="<?= Url::toRoute(['site/edit-school', 'id' => $school->id]) ?>" class="btn btn-sm btn-outline-secondary rounded w-100">Edit Specifications</a>
+                            <div class="d-grid gap-2">
+                                <?php if ($isActive): ?>
+                                    <button type="button" class="btn btn-sm btn-success rounded" disabled>Working here</button>
+                                <?php else: ?>
+                                    <a href="<?= Url::toRoute(['site/switch-school', 'id' => $school->id]) ?>"
+                                       class="btn btn-sm btn-primary rounded">
+                                        Switch into school
+                                    </a>
+                                <?php endif; ?>
+                                <a href="<?= Url::toRoute(['site/edit-school', 'id' => $school->id]) ?>"
+                                   class="btn btn-sm btn-outline-secondary rounded">
+                                    Edit Specifications
+                                </a>
+                            </div>
                         </div>
                     <?php endforeach; ?>
                 <?php endif; ?>
@@ -120,7 +190,7 @@ $this->title = 'Master SaaS Control Panel';
     .kora-school-card:last-child {
         border-bottom: none !important;
     }
-    .kora-school-card:nth-child(odd) {
+    .kora-school-card:nth-child(odd):not(.bg-primary) {
         background-color: #fafbfd;
     }
 
