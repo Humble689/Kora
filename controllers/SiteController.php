@@ -56,7 +56,11 @@ class SiteController extends Controller
                 'rules' => [
                     //  RULE 1: Super Admin Permissions
                     [
-                        'actions' => ['super-admin', 'create-school', 'edit-school'],
+                        'actions' => ['super-admin', 'create-school', 'edit-school','school-admin', 'signup', 'bursar', 'dos-review', 'seal-marks', 
+                        'print-reports', 'manage-assignments','students-directory', 'delete-assignment', 'register-student', 'edit-student', 'delete-student', 
+                        'mark-no-show', 'export-students', 'export-receipts', 'term-rollover',
+                        'bursar', 'register-student', 'edit-student', 'delete-student', 'mark-no-show', 'export-students', 'export-receipts', 
+                       'teacher-grading', 'submit-marks', 'print-reports', 'manage-assignments', 'delete-assignment'],
                         'allow' => true,
                         'roles' => ['@'],
                         'matchCallback' => function ($rule, $action) {
