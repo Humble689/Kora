@@ -99,7 +99,7 @@ class SiteController extends Controller
                         return !Yii::$app->user->isGuest && Yii::$app->user->identity->role === 'SCHOOL_ADMIN';
                     }
                 ],
-                //  RULE 3: Legacy Bursar Accounting (Keep intact)
+                //  RULE 3: Legacy Bursar Accounting 
                 [
                     'actions' => [
                         'bursar', 'register-student', 'edit-student', 'delete-student', 'mark-no-show',
@@ -183,10 +183,7 @@ class SiteController extends Controller
         ];
     }
 
-    /**
-     * Effective school context for the current request.
-     * SUPER_ADMIN uses session-selected working school; other roles use identity->school_id.
-     */
+   
     private function getWorkingSchoolId(): ?int
     {
         $user = Yii::$app->user->identity;
@@ -208,9 +205,7 @@ class SiteController extends Controller
         return $id ? Schools::findOne($id) : null;
     }
 
-    /**
-     * Redirect Super Admin to school registry when no working school is selected.
-     */
+   
     private function requireWorkingSchoolId(): ?int
     {
         $schoolId = $this->getWorkingSchoolId();
@@ -225,9 +220,7 @@ class SiteController extends Controller
         return $schoolId;
     }
 
-    /**
-     * Super Admin: enter / switch school context.
-     */
+   
     public function actionSwitchSchool($id)
     {
         if (Yii::$app->user->isGuest || Yii::$app->user->identity->role !== 'SUPER_ADMIN') {
@@ -257,9 +250,6 @@ class SiteController extends Controller
         return $this->redirect(['site/bursar']);
     }
 
-    /**
-     * Super Admin: clear working school context (platform-only view).
-     */
     public function actionClearSchoolContext()
     {
         if (Yii::$app->user->isGuest || Yii::$app->user->identity->role !== 'SUPER_ADMIN') {
@@ -283,50 +273,40 @@ class SiteController extends Controller
     }
 
 
-   
-    public function actionLogin()
-    {
-        if (!Yii::$app->user->isGuest) {
-            $role = Yii::$app->user->identity->role;
-            if ($role === 'SUPER_ADMIN') {
-                return $this->redirect(['site/super-admin']);
-            } elseif ($role === 'SCHOOL_ADMIN') {
-                return $this->redirect(['site/school-admin']); 
-            } elseif ($role === 'DOS') {
-                return $this->redirect(['site/dos-review']);
-            } elseif ($role === 'TEACHER') {
-                return $this->redirect(['site/teacher-grading']);
-            } elseif ($role === 'CANTEEN') {
-                return $this->redirect(['site/canteen-terminal']);
-            }
-            return $this->redirect(['site/bursar']);
-        }
-
-        $model = new LoginForm($this->security);
-
-        if ($model->load(Yii::$app->request->post()) && $model->login()) {
-            $role = Yii::$app->user->identity->role;
-            
-            if ($role === 'SUPER_ADMIN') {
-                return $this->redirect(['site/super-admin']);
-            } elseif ($role === 'SCHOOL_ADMIN') {
-                return $this->redirect(['site/school-admin']); 
-            } elseif ($role === 'DOS') {
-                return $this->redirect(['site/dos-review']);
-            } elseif ($role === 'TEACHER') {
-                return $this->redirect(['site/teacher-grading']);
-            } elseif ($role === 'CANTEEN') {
-                return $this->redirect(['site/canteen-terminal']);
-            }
-            return $this->redirect(['site/bursar']);
-        }
-
-        $model->password = '';
-
-        return $this->render('login', [
-            'model' => $model,
-        ]);
+public function actionLogin()
+{
+    if (!Yii::$app->user->isGuest) {
+        return $this->redirectUserByRole();
     }
+
+    $model = new LoginForm($this->security);
+
+    if ($model->load(Yii::$app->request->post()) && $model->login()) {
+        return $this->redirectUserByRole();
+    }
+
+    $model->password = '';
+
+    return $this->render('login', [
+        'model' => $model,
+    ]);
+}
+
+
+private function redirectUserByRole()
+{
+    $role = Yii::$app->user->identity->role;
+
+    return $this->redirect(match ($role) {
+        'SUPER_ADMIN'     => ['site/super-admin'],
+        'SCHOOL_ADMIN'    => ['site/school-admin'],
+        'DOS'             => ['site/dos-review'],
+        'TEACHER'         => ['site/teacher-grading'],
+        'CANTEEN'         => ['site/canteen-terminal'],
+        default           => ['site/bursar'],
+    });
+}
+
 
 
     /**
@@ -436,7 +416,7 @@ class SiteController extends Controller
 
 
     $stats = [
-        'total_tuition'     => (float) Transactions::find()->joinWith('student')->where(['transaction_type' => 'TUITION', 'students.school_id' => $userSchoolId])->sum('amount'),
+        'total_tuition'     => (float) Transactions::find()->joinWith('student')->where(['transaction_type' => 'TUITION', 'transactions.status' => 'SUCCESS', 'students.school_id' => $userSchoolId])->sum('amount'),
         'total_outstanding' => (float) Students::find()->where(['school_id' => $userSchoolId])->sum('tuition_balance'),
         'total_swallet'     => (float) Students::find()->where(['school_id' => $userSchoolId])->sum('swallet_balance'),
     ];
@@ -676,7 +656,6 @@ public function actionRegisterDevice()
     $model->status = 'ACTIVE';
 
     // Non-super-admins can only register devices for their own school.
-    // Super admin defaults to the current working school when one is selected.
     if ($currentUser->role !== 'SUPER_ADMIN') {
         $model->school_id = $currentUser->school_id;
     } else {
@@ -951,7 +930,8 @@ public function actionProcessPayment()
 
         $ledger = new Transactions();
         $ledger->student_id = $student->id;
-        $ledger->school_id = $device->school_id; // = School A, whoever owns the terminal that rang up the sale        $ledger->device_id = $device->school_id;
+        $ledger->device_id = $device->id; 
+        $ledger->school_id = $device->school_id; 
         $ledger->amount = $chargeAmount;
         $ledger->transaction_type = 'CANTEEN_SPEND';
         $ledger->payment_channel = 'CANTEEN_POS';

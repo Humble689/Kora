@@ -18,7 +18,7 @@ $this->title = 'KORA Canteen Counter Terminal';
         <p class="text-muted small mb-0">Scan barcode or enter the student 10-digit code to execute terminal wallet deductions.</p>
     </div>
     <div class="text-end">
-        <span class="badge bg-light text-dark border small" id="posDeviceBadge" style="cursor: pointer;" onclick="promptDeviceSetup()">
+        <span class="badge bg-light text-dark border small" id="posDeviceBadge" style="cursor: pointer;" >
             <i class="bi bi-hdd-stack"></i> <span id="posDeviceLabel">No device set</span>
         </span>
     </div>
@@ -143,14 +143,14 @@ function getDeviceUid() {
     return localStorage.getItem(DEVICE_STORAGE_KEY) || '';
 }
 
-function promptDeviceSetup() {
-    const current = getDeviceUid();
-    const uid = prompt("Enter this terminal's device ID (provided by admin):", current);
-    if (uid && uid.trim()) {
-        localStorage.setItem(DEVICE_STORAGE_KEY, uid.trim());
-        updateDeviceBadge();
-    }
-}
+// function promptDeviceSetup() {
+//     const current = getDeviceUid();
+//     const uid = prompt("Enter this terminal's device ID (provided by admin):", current);
+//     if (uid && uid.trim()) {
+//         localStorage.setItem(DEVICE_STORAGE_KEY, uid.trim());
+//         updateDeviceBadge();
+//     }
+// }
 
 function updateDeviceBadge() {
     const uid = getDeviceUid();

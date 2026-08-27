@@ -339,6 +339,22 @@ if (!in_array($currentRoute, ['site/index', 'site/login'], true)):
 <?php endif; ?>
 
 <main id="main" class="flex-grow-1" role="main" style="<?= $currentRoute !== 'site/index' ? 'padding-top: 56px;' : '' ?>">
+
+<?php 
+
+// Check if a Super Admin is currently locked into a school context
+if (!Yii::$app->user->isGuest && Yii::$app->user->identity->role === 'SUPER_ADMIN') {
+    $currentSchoolId = Yii::$app->session->get('super_admin_school_id');
+    
+    if ($currentSchoolId) {
+        echo '<div class="alert alert-primary d-flex justify-content-between align-items-center">';
+        echo '<span>⚙️ Currently managing School ID: <strong>' . (int)$currentSchoolId . '</strong></span>';
+        echo '<a href="' . Url::to(['site/clear-school-context']) . '" class="btn btn-sm btn-danger">Exit School View</a>';
+        echo '</div>';
+    }
+}
+?>
+
     
     <?php if (!$isGuest && $currentRoute !== 'site/index'): ?>
         <div class="d-flex w-100">
