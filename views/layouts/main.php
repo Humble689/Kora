@@ -397,6 +397,7 @@ if (!Yii::$app->user->isGuest && Yii::$app->user->identity->role === 'SUPER_ADMI
                     <a href="<?= Url::toRoute(['site/create-school']) ?>" class="sidebar-link <?= $currentRoute === 'site/create-school' ? 'active' : '' ?>"><i class="bi bi-building-add"></i> Onboard New School</a>
 
                     <div class="sidebar-heading">School Management</div>
+                    <a href="<?= Url::toRoute(['site/staff-directory']) ?>" class="sidebar-link <?= $currentRoute === 'site/staff-directory' ? 'active' : '' ?>"><i class="bi bi-people-fill"></i> Staff Directory</a>
                     <a href="<?= Url::toRoute(['site/school-admin']) ?>" class="sidebar-link <?= $currentRoute === 'site/school-admin' ? 'active' : '' ?>"><i class="bi bi-shield-shaded"></i> Admin Dashboard</a>
                     <a href="<?= Url::toRoute(['site/signup']) ?>" class="sidebar-link <?= $currentRoute === 'site/signup' ? 'active' : '' ?>"><i class="bi bi-person-plus-fill"></i> Provision Staff Account</a>
 
@@ -419,6 +420,8 @@ if (!Yii::$app->user->isGuest && Yii::$app->user->identity->role === 'SUPER_ADMI
                 <?php if ($role === 'SCHOOL_ADMIN'): ?>
                     <div class="sidebar-heading">School Management</div>
                     <a href="<?= Url::toRoute(['site/school-admin']) ?>" class="sidebar-link <?= $currentRoute === 'site/school-admin' ? 'active' : '' ?>"><i class="bi bi-shield-shaded"></i> Admin Dashboard</a>
+                    <a href="<?= Url::toRoute(['site/staff-directory']) ?>" class="sidebar-link <?= $currentRoute === 'site/staff-directory' ? 'active' : '' ?>"><i class="bi bi-people-fill"></i> Staff Directory</a>
+       
                     <a href="<?= Url::toRoute(['site/signup']) ?>" class="sidebar-link <?= $currentRoute === 'site/signup' ? 'active' : '' ?>"><i class="bi bi-person-plus-fill"></i> Provision Staff Account</a>
 
                     <div class="sidebar-heading">Financial Audits</div>

@@ -23,6 +23,7 @@ use yii\filters\VerbFilter;
 use yii\base\Security;
 use yii\data\ActiveDataProvider;
 use yii\data\Pagination;
+use yii\helpers\Url;
 use yii\mail\MailerInterface;
 use yii\web\Controller;
 use yii\web\ErrorAction;
@@ -164,6 +165,24 @@ class SiteController extends Controller
 }
 
 
+private function tooManyAttempts(string $bucket, int $maxAttempts, int $windowSeconds): bool
+{
+    $cache = Yii::$app->cache;
+    $key = 'ratelimit_' . $bucket . '_' . Yii::$app->request->userIP;
+    $now = time();
+
+    $data = $cache->get($key);
+    if ($data === false || $data['expires'] < $now) {
+        $data = ['count' => 0, 'expires' => $now + $windowSeconds];
+    }
+
+    $data['count']++;
+    $cache->set($key, $data, $windowSeconds);
+
+    return $data['count'] > $maxAttempts;
+}
+
+
 
 
     /**
@@ -272,6 +291,25 @@ class SiteController extends Controller
         ]);
     }
 
+    public function beforeAction($action)
+{
+    if (!parent::beforeAction($action)) {
+        return false;
+    }
+
+    if (!Yii::$app->user->isGuest) {
+        $identity = Yii::$app->user->identity;
+        if ($identity->status !== 'ACTIVE') {
+            Yii::$app->user->logout();
+            Yii::$app->session->setFlash('error', 'Your account has been deactivated. Please contact your administrator.');
+            Yii::$app->response->redirect(['site/login'])->send();
+            Yii::$app->end();
+        }
+    }
+
+    return true;
+}
+
 
 public function actionLogin()
 {
@@ -284,6 +322,13 @@ public function actionLogin()
     if ($model->load(Yii::$app->request->post()) && $model->login()) {
         return $this->redirectUserByRole();
     }
+
+    $user = User::findOne(['username' => $model->username]);
+
+if ($user && $user->status !== 'ACTIVE') {
+    Yii::$app->session->setFlash('error', 'This account has been deactivated. Contact your school administrator.');
+    return $this->render('login', ['model' => $model]);
+}
 
     $model->password = '';
 
@@ -366,6 +411,10 @@ private function redirectUserByRole()
     public function actionLookup()
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
+         if ($this->tooManyAttempts('lookup', 8, 60)) {
+        Yii::$app->response->statusCode = 429;
+        return ['success' => false, 'message' => 'Too many attempts. Please wait a moment and try again.'];
+    }
         $model = new StudentLookup();
 
         if ($model->load(Yii::$app->request->post()) && $model->validate()) {
@@ -705,6 +754,22 @@ public function actionProcessPayment()
     Yii::$app->response->format = Response::FORMAT_JSON;
     $request = Yii::$app->request;
 
+    $idempotencyKey = trim((string) $request->post('idempotency_key'));
+
+if (empty($idempotencyKey)) {
+    return ['success' => false, 'message' => 'Missing request identifier. Please refresh and try again.'];
+}
+
+$existing = Transactions::findOne(['idempotency_key' => $idempotencyKey]);
+if ($existing) {
+    return [
+        'success' => $existing->status === 'SUCCESS',
+        'message' => $existing->status === 'SUCCESS'
+            ? 'Thank you!'
+            : 'This transaction could not be completed.',
+    ];
+}
+
     if ($request->isPost) {
         $paymentCode = $request->post('payment_code');
         $amount = (float) $request->post('amount');
@@ -842,18 +907,62 @@ public function actionProcessPayment()
     }
 
        
-    public function actionCanteenTerminal()
-    {
-        $model = new StudentLookup();
-        return $this->render('canteen_terminal', [
-            'model' => $model,
-        ]);
+public function actionCanteenTerminal()
+{
+    if (Yii::$app->user->isGuest) {
+        return $this->redirect(['site/login']);
     }
 
- public function actionCanteenDebit()
+    $model = new StudentLookup();
+    $currentUser = Yii::$app->user->identity;
+    $assignedDevice = PosDevices::findOne(['assigned_staff_id' => $currentUser->id]);
+
+    return $this->render('canteen_terminal', [
+        'model' => $model,
+        'assignedDevice' => $assignedDevice,
+    ]);
+}
+
+private function tooManyAttemptsForUser(string $bucket, int $maxAttempts, int $windowSeconds): bool
+{
+    $cache = Yii::$app->cache;
+    $userId = Yii::$app->user->isGuest ? 'guest_' . Yii::$app->request->userIP : Yii::$app->user->id;
+    $key = 'ratelimit_' . $bucket . '_' . $userId;
+    $now = time();
+
+    $data = $cache->get($key);
+    if ($data === false || $data['expires'] < $now) {
+        $data = ['count' => 0, 'expires' => $now + $windowSeconds];
+    }
+
+    $data['count']++;
+    $cache->set($key, $data, $windowSeconds);
+
+    return $data['count'] > $maxAttempts;
+}
+
+public function actionCanteenDebit()
 {
     Yii::$app->response->format = Response::FORMAT_JSON;
-    $request = Yii::$app->request;
+    $request = Yii::$app->request;if ($this->tooManyAttemptsForUser('canteen_debit', 20, 60)) {
+    return ['success' => false, 'message' => 'Too many requests in a short time. Please slow down.'];
+}
+
+    $idempotencyKey = trim((string) $request->post('idempotency_key'));
+
+    if (empty($idempotencyKey)) {
+        return ['success' => false, 'message' => 'Missing request identifier. Please refresh and try again.'];
+    }
+
+    $existing = Transactions::findOne(['idempotency_key' => $idempotencyKey]);
+    if ($existing) {
+        return [
+            'success' => $existing->status === 'SUCCESS',
+            'message' => $existing->status === 'SUCCESS'
+                ? 'Thank you!'
+                : 'This transaction could not be completed.',
+        ];
+    }
 
     if (!$request->isPost) {
         return ['success' => false, 'message' => 'Bad Request.'];
@@ -861,19 +970,16 @@ public function actionProcessPayment()
 
     $paymentCode = $request->post('payment_code');
     $chargeAmount = (float) $request->post('amount');
-    $deviceUid = trim((string) $request->post('device_uid'));
 
     if (empty($paymentCode) || $chargeAmount <= 0) {
         return ['success' => false, 'message' => 'Invalid sale checkout metrics.'];
     }
 
-    if (empty($deviceUid)) {
-        return ['success' => false, 'message' => 'This terminal is not configured with a device ID.'];
-    }
+    $currentUser = Yii::$app->user->identity;
+    $device = PosDevices::findOne(['assigned_staff_id' => $currentUser->id]);
 
-    $device = PosDevices::findOne(['device_uid' => $deviceUid]);
     if (!$device) {
-        return ['success' => false, 'message' => 'Unrecognized terminal device. Please contact your administrator.'];
+        return ['success' => false, 'message' => 'No terminal is assigned to your account. Contact your administrator.'];
     }
 
     if ($device->status !== 'ACTIVE') {
@@ -930,8 +1036,8 @@ public function actionProcessPayment()
 
         $ledger = new Transactions();
         $ledger->student_id = $student->id;
-        $ledger->device_id = $device->id; 
-        $ledger->school_id = $device->school_id; 
+        $ledger->device_id = $device->id;
+        $ledger->school_id = $device->school_id;
         $ledger->amount = $chargeAmount;
         $ledger->transaction_type = 'CANTEEN_SPEND';
         $ledger->payment_channel = 'CANTEEN_POS';
@@ -942,7 +1048,6 @@ public function actionProcessPayment()
             throw new \Exception('Failed to commit merchant ledger tracking token.');
         }
 
-        // Update device sync timestamp
         $device->last_synced_at = date('Y-m-d H:i:s');
         $device->save(false);
 
@@ -1015,6 +1120,25 @@ public function actionCanteenTransactions()
     ]);
 }
 
+public function actionDeviceLookup()
+{
+    Yii::$app->response->format = \yii\web\Response::FORMAT_JSON;
+    $uid = trim((string) Yii::$app->request->get('device_uid'));
+
+    if (empty($uid)) {
+        return ['success' => false];
+    }
+
+    $device = \app\models\PosDevices::findOne(['device_uid' => $uid]);
+    if (!$device || $device->status !== 'ACTIVE') {
+        return ['success' => false];
+    }
+
+    return [
+        'success' => true,
+        'label' => $device->label ?: $device->device_uid,
+    ];
+}
     public function actionStudentDashboard($code = null)
     {
         if (empty($code)) {
@@ -2780,6 +2904,285 @@ public function actionClassStudentCount()
         ->count();
 
     return ['count' => (int) $count];
+}
+
+
+public function actionStaffDirectory()
+{
+    $currentUser = Yii::$app->user->identity;
+
+    if (!in_array($currentUser->role, ['SUPER_ADMIN', 'SCHOOL_ADMIN'], true)) {
+        throw new \yii\web\ForbiddenHttpException('You are not authorized to view staff records.');
+    }
+
+    $schoolId = $this->requireWorkingSchoolId();
+
+    $query = User::find()
+        ->where(['school_id' => $schoolId])
+        ->andWhere(['!=', 'role', 'SUPER_ADMIN'])
+        ->orderBy(['status' => SORT_ASC, 'username' => SORT_ASC]);
+
+    $dataProvider = new ActiveDataProvider([
+        'query' => $query,
+        'pagination' => ['pageSize' => 25],
+    ]);
+
+    return $this->render('staff-directory', [
+        'dataProvider' => $dataProvider,
+        'currentUserRole' => $currentUser->role,
+    ]);
+}
+
+public function actionUpdateStaffStatus($id)
+{
+    Yii::$app->response->format = Response::FORMAT_JSON;
+    $currentUser = Yii::$app->user->identity;
+
+    if (!in_array($currentUser->role, ['SUPER_ADMIN', 'SCHOOL_ADMIN'], true)) {
+        throw new \yii\web\ForbiddenHttpException();
+    }
+    
+
+    $staff = User::findOne($id);
+    if (!$staff) {
+        return ['success' => false, 'message' => 'Staff record not found.'];
+    }
+    if ($staff->id === $currentUser->id) {
+    return ['success' => false, 'message' => 'You cannot change your own employment status.'];
+}
+
+    if ($currentUser->role !== 'SUPER_ADMIN' && $staff->school_id !== $currentUser->school_id) {
+        throw new \yii\web\ForbiddenHttpException('You cannot manage staff outside your school.');
+    }
+
+    if ($staff->role === 'SUPER_ADMIN') {
+        return ['success' => false, 'message' => 'Super admin accounts cannot be modified here.'];
+    }
+
+    $newStatus = Yii::$app->request->post('status');
+    if (!in_array($newStatus, ['ACTIVE', 'INACTIVE', 'ON_LEAVE'], true)) {
+        return ['success' => false, 'message' => 'Invalid status.'];
+    }
+
+    $staff->status = $newStatus;
+    if (!$staff->save(false, ['status'])) {
+        return ['success' => false, 'message' => 'Failed to update status.'];
+    }
+
+    // If they're no longer active, free up any canteen device they were holding
+    if ($newStatus !== 'ACTIVE') {
+        Yii::$app->db->createCommand()->update(
+            'pos_devices',
+            ['assigned_staff_id' => null],
+            ['assigned_staff_id' => $staff->id]
+        )->execute();
+    }
+
+    return ['success' => true, 'message' => "Status updated to {$newStatus}."];
+}
+
+public function actionRemoveStaff($id)
+{
+    Yii::$app->response->format = Response::FORMAT_JSON;
+    $currentUser = Yii::$app->user->identity;
+
+    if (!in_array($currentUser->role, ['SUPER_ADMIN', 'SCHOOL_ADMIN'], true)) {
+        throw new \yii\web\ForbiddenHttpException();
+    }
+
+    $staff = User::findOne($id);
+    if (!$staff) {
+        return ['success' => false, 'message' => 'Staff record not found.'];
+    }
+
+    if ($currentUser->role !== 'SUPER_ADMIN' && $staff->school_id !== $currentUser->school_id) {
+        throw new \yii\web\ForbiddenHttpException('You cannot manage staff outside your school.');
+    }
+
+    if ($staff->id === $currentUser->id) {
+    return ['success' => false, 'message' => 'You cannot change your own employment status.'];
+}
+
+    if ($staff->role === 'SUPER_ADMIN') {
+        return ['success' => false, 'message' => 'Super admin accounts cannot be removed here.'];
+    }
+
+    $staff->status = 'TERMINATED';
+    if (!$staff->save(false, ['status'])) {
+        return ['success' => false, 'message' => 'Failed to remove staff member.'];
+    }
+
+    Yii::$app->db->createCommand()->update(
+        'pos_devices',
+        ['assigned_staff_id' => null],
+        ['assigned_staff_id' => $staff->id]
+    )->execute();
+
+    return ['success' => true, 'message' => 'Staff member removed and access revoked.'];
+}
+
+// Called from the existing parent-facing student dashboard, by the parent themselves
+public function actionSponsorToggle($code)
+{
+    Yii::$app->response->format = Response::FORMAT_JSON;
+    $student = Students::findOne(['payment_code' => $code]);
+
+    if (!$student) {
+        return ['success' => false, 'message' => 'Student not found.'];
+    }
+
+    $enable = Yii::$app->request->post('enable') === '1';
+
+    if ($enable && empty($student->sponsor_code)) {
+        $student->sponsor_code = $student->generateSponsorCode();
+    }
+
+    $student->sponsorship_enabled = $enable;
+
+    if (!$student->save(false, ['sponsorship_enabled', 'sponsor_code'])) {
+        return ['success' => false, 'message' => 'Failed to update sponsorship setting.'];
+    }
+
+    return [
+        'success' => true,
+        'sponsorship_enabled' => $student->sponsorship_enabled,
+        'sponsor_code' => $student->sponsor_code,
+        'sponsor_url' => $student->sponsorship_enabled
+            ? Url::toRoute(['site/sponsor', 'code' => $student->sponsor_code], true)
+            : null,
+    ];
+}
+
+// Public page — no login required, minimal info only
+public function actionSponsor($code)
+{
+    $student = Students::findOne(['sponsor_code' => $code, 'sponsorship_enabled' => true]);
+
+    if (!$student) {
+        throw new \yii\web\NotFoundHttpException('This sponsorship link is invalid or no longer active.');
+    }
+
+    return $this->render('sponsor', [
+        'firstName' => explode(' ', trim($student->name))[0] ?? $student->name,
+        'classLevel' => $student->class_level,
+        'sponsorCode' => $code,
+    ]);
+}
+
+public function actionSponsorTopup($code)
+{
+    Yii::$app->response->format = Response::FORMAT_JSON;
+    $request = Yii::$app->request;
+
+    if (!$request->isPost) {
+        return ['success' => false, 'message' => 'Bad Request.'];
+    }
+      if ($this->tooManyAttempts('sponsor_topup', 5, 60)) {
+        Yii::$app->response->statusCode = 429;
+        return ['success' => false, 'message' => 'Too many attempts. Please wait a moment and try again.'];
+    }
+
+    $idempotencyKey = trim((string) $request->post('idempotency_key'));
+
+    if (empty($idempotencyKey)) {
+        return ['success' => false, 'message' => 'Missing request identifier. Please refresh and try again.'];
+    }
+
+    $existing = Transactions::findOne(['idempotency_key' => $idempotencyKey]);
+    if ($existing) {
+        // Already processed — return the original outcome, don't charge again.
+        return [
+            'success' => $existing->status === 'SUCCESS',
+            'message' => $existing->status === 'SUCCESS'
+                ? 'Thank you! Your gift has been added to their wallet.'
+                : 'This transaction could not be completed.',
+        ];
+    }
+
+    $amount = (float) $request->post('amount');
+    $sponsorName = trim((string) $request->post('sponsor_name'));
+
+    $maxPerTransaction = 50000;   // UGX — tune per school
+$maxPerStudentPerDay = 100000;
+
+if ($amount <= 0 || $amount > $maxPerTransaction) {
+    return ['success' => false, 'message' => 'Enter a valid amount (up to UGX ' . number_format($maxPerTransaction) . ' per gift).'];
+}
+
+    $student = Students::findOne(['sponsor_code' => $code, 'sponsorship_enabled' => true]);
+    if (!$student) {
+        return ['success' => false, 'message' => 'This sponsorship link is invalid or no longer active.'];
+    }
+
+    $startOfDay = date('Y-m-d 00:00:00');
+    $endOfDay = date('Y-m-d 23:59:59');
+
+    $givenToday = (float) Transactions::find()
+        ->where(['student_id' => $student->id, 'transaction_type' => 'SPONSOR_TOPUP'])
+        ->andWhere(['between', 'created_at', $startOfDay, $endOfDay])
+        ->sum('amount');
+
+   if ($givenToday + $amount > $maxPerStudentPerDay) {
+    return ['success' => false, 'message' => 'This student has reached today\'s sponsorship limit. Please try again tomorrow.'];
+}
+
+    $dbTransaction = Yii::$app->db->beginTransaction();
+    try {
+        $student->swallet_balance += $amount;
+        if (!$student->save(false, ['swallet_balance'])) {
+            throw new \Exception('Failed to credit wallet.');
+        }
+
+        $ledger = new Transactions();
+        $ledger->student_id = $student->id;
+        $ledger->school_id = $student->school_id;
+        $ledger->device_id = null; // not a terminal-originated transaction
+        $ledger->amount = $amount;
+        $ledger->transaction_type = 'SPONSOR_TOPUP';
+        $ledger->payment_channel = 'SPONSOR_WEB';
+        $ledger->external_reference = 'SPN_' . strtoupper(uniqid());
+        $ledger->status = 'SUCCESS';
+        $ledger->sponsor_name = $sponsorName !== '' ? $sponsorName : null;
+
+        if (!$ledger->save()) {
+            throw new \Exception('Failed to record sponsorship transaction.');
+        }
+
+        $dbTransaction->commit();
+
+        return ['success' => true, 'message' => 'Thank you! Your gift has been added to their wallet.'];
+
+    } catch (\Exception $e) {
+        $dbTransaction->rollBack();
+        return ['success' => false, 'message' => 'Something went wrong. Please try again.'];
+    }
+}
+
+public function actionSponsorLookup()
+{
+    Yii::$app->response->format = Response::FORMAT_JSON;
+     if ($this->tooManyAttempts('sponsor_lookup', 8, 60)) {
+        Yii::$app->response->statusCode = 429;
+        return ['success' => false, 'message' => 'Too many attempts. Please wait a moment and try again.'];
+    }
+    $code = trim((string) Yii::$app->request->post('payment_code'));
+
+    if (empty($code)) {
+        return ['success' => false, 'message' => 'Enter a payment code to look up.'];
+    }
+
+$student = Students::findOne(['payment_code' => $code, 'sponsorship_enabled' => true])
+    ?? Students::findOne(['sponsor_code' => $code, 'sponsorship_enabled' => true]);
+    if (!$student) {
+        return ['success' => false, 'message' => 'No sponsorship-enabled student found with that code. Double check the code with the family, or they may not have sponsorship enabled.'];
+    }
+
+    return [
+        'success' => true,
+        'first_name' => explode(' ', trim($student->name))[0] ?: $student->name,
+        'class_level' => $student->class_level,
+        'sponsor_url' => Url::toRoute(['site/sponsor', 'code' => $student->sponsor_code], true),
+    ];
 }
 
 }

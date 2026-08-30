@@ -88,6 +88,15 @@ class Students extends \yii\db\ActiveRecord
         return $this->hasMany(Transactions::class, ['student_id' => 'id']);
     }
 
+    public function generateSponsorCode(): string
+{
+    do {
+        $code = 'SPN-' . strtoupper(Yii::$app->security->generateRandomString(6));
+    } while (self::find()->where(['sponsor_code' => $code])->exists());
+
+    return $code;
+}
+
     
 
 }

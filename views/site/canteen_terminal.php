@@ -16,13 +16,26 @@ $this->title = 'KORA Canteen Counter Terminal';
         </span>
         <h1 class="h3 fw-bold text-dark mb-1">Cashless Pocket Money Terminal</h1>
         <p class="text-muted small mb-0">Scan barcode or enter the student 10-digit code to execute terminal wallet deductions.</p>
-    </div>
-    <div class="text-end">
-        <span class="badge bg-light text-dark border small" id="posDeviceBadge" style="cursor: pointer;" >
-            <i class="bi bi-hdd-stack"></i> <span id="posDeviceLabel">No device set</span>
-        </span>
-    </div>
-</div>
+            </div>
+        <?php
+        $deviceLabel = 'No device assigned — contact your administrator';
+        $deviceOk = false;
+
+        if ($assignedDevice) {
+            if ($assignedDevice->status === 'ACTIVE') {
+                $deviceLabel = $assignedDevice->label ?: $assignedDevice->device_uid;
+                $deviceOk = true;
+            } else {
+                $deviceLabel = ($assignedDevice->label ?: $assignedDevice->device_uid) . ' (deactivated)';
+            }
+        }
+        ?>
+        <div class="text-end">
+            <span class="badge <?= $deviceOk ? 'bg-light text-dark' : 'bg-danger text-white' ?> border small" id="posDeviceBadge">
+                <i class="bi bi-hdd-stack"></i> <span id="posDeviceLabel"><?= Html::encode($deviceLabel) ?></span>
+            </span>
+        </div>
+</div>  
 
 <div class="site-canteen bg-light py-5 min-vh-100 text-dark">
     <div class="container-fluid" style="max-width: 1200px;">
@@ -137,27 +150,7 @@ $this->title = 'KORA Canteen Counter Terminal';
 
 
 <script>
-const DEVICE_STORAGE_KEY = 'kora_pos_device_uid';
 
-function getDeviceUid() {
-    return localStorage.getItem(DEVICE_STORAGE_KEY) || '';
-}
-
-// function promptDeviceSetup() {
-//     const current = getDeviceUid();
-//     const uid = prompt("Enter this terminal's device ID (provided by admin):", current);
-//     if (uid && uid.trim()) {
-//         localStorage.setItem(DEVICE_STORAGE_KEY, uid.trim());
-//         updateDeviceBadge();
-//     }
-// }
-
-function updateDeviceBadge() {
-    const uid = getDeviceUid();
-    document.getElementById('posDeviceLabel').innerText = uid ? uid : 'No device set — click to configure';
-}
-
-document.addEventListener('DOMContentLoaded', updateDeviceBadge);
 
 
 function executePosLookup(event) {
@@ -195,16 +188,9 @@ function executePosLookup(event) {
         }
     });
 }
-
 function commitCanteenDeduction() {
     const code = document.getElementById('posCodeInput').value;
     const amount = document.getElementById('posChargeAmount').value;
-    const deviceUid = getDeviceUid();
-
-    if (!deviceUid) {
-        alert("This terminal isn't configured yet. Click the device badge at the top to set it up.");
-        return;
-    }
 
     if (!amount || amount <= 0) {
         alert("Please enter a valid checkout transaction value.");
@@ -218,7 +204,6 @@ function commitCanteenDeduction() {
     const params = new URLSearchParams();
     params.append('payment_code', code);
     params.append('amount', amount);
-    params.append('device_uid', deviceUid);
     params.append('<?= Yii::$app->request->csrfParam ?>', '<?= Yii::$app->request->getCsrfToken() ?>');
 
     fetch('<?= yii\helpers\Url::toRoute(['site/canteen-debit']) ?>', {

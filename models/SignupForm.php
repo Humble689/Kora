@@ -94,16 +94,15 @@ class SignupForm extends Model
                 ])->execute();
             }
 
-            if ($this->role === 'CANTEEN') {
+                    if ($this->role === 'CANTEEN') {
                 $deviceIds = array_map('intval', $this->pos_device_ids ?: []);
 
-                // Register a brand-new device on the spot, if a label was typed in
                 if (!empty(trim((string) $this->new_device_label))) {
                     $newDevice = new PosDevices();
                     $newDevice->school_id = $this->school_id;
                     $newDevice->label = trim($this->new_device_label);
                     $newDevice->status = 'ACTIVE';
-                    // device_uid is auto-generated in PosDevices::beforeValidate()
+                    $newDevice->assigned_staff_id = $admin->id;   // set directly, no join table needed
 
                     if (!$newDevice->save()) {
                         throw new \Exception('Failed to register new POS device: ' . implode(' ', $newDevice->getFirstErrors()));
@@ -112,14 +111,14 @@ class SignupForm extends Model
                     $deviceIds[] = $newDevice->id;
                 }
 
-                foreach ($deviceIds as $deviceId) {
-                    Yii::$app->db->createCommand()->insert('pos_device_staff', [
-                        'device_id' => $deviceId,
-                        'user_id' => $admin->id,
-                    ])->execute();
+                if (!empty($deviceIds)) {
+                    Yii::$app->db->createCommand()->update(
+                        'pos_devices',
+                        ['assigned_staff_id' => $admin->id],
+                        ['id' => $deviceIds]  
+                    )->execute();
                 }
             }
-
             $dbTransaction->commit();
             return true;
 

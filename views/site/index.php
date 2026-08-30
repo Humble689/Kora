@@ -1,5 +1,6 @@
 <?php
 
+use yii\helpers\Url;
 use yii\widgets\ActiveForm;
 
 /** @var yii\web\View $this */
@@ -78,10 +79,44 @@ $this->registerJsFile('@web/js/custom.js', ['depends' => [\yii\web\JqueryAsset::
                 <div class="img-wrap">
                     <img src="<?= Yii::getAlias('@web/images/img-1.jpg') ?>" alt="Parent payment dashboard" class="img-fluid rounded">
                 </div>
+                
+            </div>
+        </div>
+    </div>
+
+    
+</div>
+<div class="section pt-4 pb-4 text-center">
+    <div class="container">
+        <a href="#" id="sponsorRevealLink" class="text-decoration-none fw-semibold text-success" onclick="toggleSponsorSection(event)">
+            <i class="bi bi-heart-fill me-1"></i> Want to Sponsor a Student?
+        </a>
+    </div>
+</div>
+
+<div class="section pt-0 pb-5 d-none" id="sponsorSectionWrapper" style="background: #f8f9fa;">
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-lg-6 text-center" data-aos="fade-up">
+                <h2 class="h4 fw-bold text-dark mb-2">Sponsor a Student</h2>
+                <p class="text-muted mb-4">If a family has shared their child's payment code with you for sponsorship, enter it below.</p>
+
+                <div class="bg-white rounded p-4 shadow-sm text-start">
+                    <label class="form-label fw-semibold text-secondary small">Student Payment Code</label>
+                    <div class="input-group">
+                        <input type="text" id="sponsorLookupCode" maxlength="10"
+                               class="form-control form-control-lg font-monospace fw-bold text-center"
+                               placeholder="0000000000" autocomplete="off">
+                        <button class="btn btn-success btn-lg fw-bold" onclick="executeSponsorLookup()">Find</button>
+                    </div>
+                    <div id="sponsorLookupResult" class="mt-3"></div>
+                </div>
             </div>
         </div>
     </div>
 </div>
+
+
 
 <div class="section pt-4">
     <div class="container">
@@ -292,14 +327,15 @@ $this->registerJsFile('@web/js/custom.js', ['depends' => [\yii\web\JqueryAsset::
             <div class="col-lg-4">
                 <div class="widget">
                     <h3>About</h3>
-                    <p>SchoolPay helps parents pay tuition and student spending balances from one streamlined portal.</p>
+                    <p>Kora helps parents pay tuition, manage pocket money wallets, and receive sponsorship for their children's canteen spending — all from one secure portal.</p>
                 </div>
                 <div class="widget">
-                    <address>SchoolPay Financial Platform</address>
+                    <address>Kora School Wallet Platform</address>
                     <ul class="list-unstyled links">
                         <li><a href="#verification">Parent Portal</a></li>
                         <li><a href="#services">Services</a></li>
                         <li><a href="#insights">Insights</a></li>
+                        <li><a href="#" onclick="toggleSponsorSection(event)">Sponsor a Student</a></li>
                     </ul>
                 </div>
             </div>
@@ -307,14 +343,14 @@ $this->registerJsFile('@web/js/custom.js', ['depends' => [\yii\web\JqueryAsset::
                 <div class="widget">
                     <h3>Platform</h3>
                     <ul class="list-unstyled float-start links">
-                        <li><a href="#">Home</a></li>
+                        <li><a href="<?= Url::toRoute(['site/index']) ?>">Home</a></li>
                         <li><a href="#services">Collections</a></li>
                         <li><a href="#insights">Wallets</a></li>
                     </ul>
                     <ul class="list-unstyled float-start links">
-                        <li><a href="#">Security</a></li>
-                        <li><a href="#">Compliance</a></li>
-                        <li><a href="#">Support</a></li>
+                        <li><a href="<?= Url::toRoute(['site/privacy-policy']) ?>">Privacy Policy</a></li>
+                        <li><a href="<?= Url::toRoute(['site/terms-of-service']) ?>">Terms of Service</a></li>
+                        <li><a href="<?= Url::toRoute(['site/contact']) ?>">Support</a></li>
                     </ul>
                 </div>
             </div>
@@ -466,6 +502,54 @@ function processSimulatedPayment(type) {
     })
     .catch(error => {
         alert("Network clearing communications channel failure: " + error.message);
+    });
+}
+
+function toggleSponsorSection(event) {
+    event.preventDefault();
+    const wrapper = document.getElementById('sponsorSectionWrapper');
+    const link = document.getElementById('sponsorRevealLink');
+    const isHidden = wrapper.classList.contains('d-none');
+
+    wrapper.classList.toggle('d-none');
+
+    if (isHidden) {
+        wrapper.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        link.style.display = 'none'; // hide the reveal link once opened, since the section is now visible
+    }
+}
+
+function executeSponsorLookup() {
+    const code = document.getElementById('sponsorLookupCode').value.trim();
+    const resultBox = document.getElementById('sponsorLookupResult');
+
+    if (!code) {
+        resultBox.innerHTML = '<div class="alert alert-warning py-2 mb-0">Please enter a payment code.</div>';
+        return;
+    }
+
+    const params = new URLSearchParams();
+    params.append('payment_code', code);
+    params.append('<?= Yii::$app->request->csrfParam ?>', '<?= Yii::$app->request->getCsrfToken() ?>');
+
+    fetch('<?= \yii\helpers\Url::toRoute(['site/sponsor-lookup']) ?>', {
+        method: 'POST',
+        body: params,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            resultBox.innerHTML = `
+                <div class="alert alert-success py-2 mb-2">Found ${data.first_name} (${data.class_level}).</div>
+                <a href="${data.sponsor_url}" class="btn btn-outline-success w-100 fw-bold">Continue to Sponsor ${data.first_name}</a>
+            `;
+        } else {
+            resultBox.innerHTML = `<div class="alert alert-warning py-2 mb-0">${data.message}</div>`;
+        }
+    })
+    .catch(() => {
+        resultBox.innerHTML = '<div class="alert alert-danger py-2 mb-0">Something went wrong. Please try again.</div>';
     });
 }
 </script>

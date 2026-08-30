@@ -8,6 +8,57 @@ use yii\helpers\Url;
 $this->title = 'KORA Portal - ' . $student->name;
 ?>
 
+<div class="card border-0 shadow-sm rounded-3 p-3 mb-3" id="sponsorshipCard">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h6 class="fw-bold mb-1">Allow Sponsorship</h6>
+            <p class="text-muted small mb-0">Let relatives or well-wishers top up this wallet directly.</p>
+        </div>
+        <div class="form-check form-switch">
+            <input class="form-check-input" type="checkbox" id="sponsorToggle" <?= $student->sponsorship_enabled ? 'checked' : '' ?>>
+        </div>
+    </div>
+
+    <div id="sponsorLinkBlock" class="mt-3 <?= $student->sponsorship_enabled ? '' : 'd-none' ?>">
+        <label class="form-label small fw-semibold">Share this link:</label>
+        <div class="input-group">
+            <input type="text" id="sponsorLinkInput" class="form-control form-control-sm" readonly
+                   value="<?= $student->sponsorship_enabled ? Html::encode(Url::toRoute(['site/sponsor', 'code' => $student->sponsor_code], true)) : '' ?>">
+            <button class="btn btn-outline-secondary btn-sm" onclick="copySponsorLink()">Copy</button>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('sponsorToggle').addEventListener('change', function () {
+    const params = new URLSearchParams();
+    params.append('enable', this.checked ? '1' : '0');
+    params.append('<?= Yii::$app->request->csrfParam ?>', '<?= Yii::$app->request->getCsrfToken() ?>');
+
+    fetch('<?= Url::toRoute(['site/sponsor-toggle', 'code' => $student->payment_code]) ?>', {
+        method: 'POST',
+        body: params,
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' },
+    })
+    .then(res => res.json())
+    .then(data => {
+        const block = document.getElementById('sponsorLinkBlock');
+        if (data.success && data.sponsorship_enabled) {
+            document.getElementById('sponsorLinkInput').value = data.sponsor_url;
+            block.classList.remove('d-none');
+        } else {
+            block.classList.add('d-none');
+        }
+    });
+});
+
+function copySponsorLink() {
+    const input = document.getElementById('sponsorLinkInput');
+    input.select();
+    navigator.clipboard.writeText(input.value);
+}
+</script>
+
 <div class="site-student-dashboard bg-light py-5 min-vh-100">
     <div class="container max-w-5xl">
         
