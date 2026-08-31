@@ -25,6 +25,7 @@ $txBadgeMap = [
     'TUITION'       => 'text-primary',
     'POCKET_MONEY'  => 'text-success',
     'EXPENSE' => 'text-danger',
+    'SPONSOR_TOPUP'=> 'text-success',
 ];
 $txBadgeDefault = 'text-danger';
 
@@ -96,9 +97,9 @@ foreach ($reconciliationByChannel as $row) {
             <button type="button" class="btn btn-outline-danger btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#voidModal">
                 <i class="bi bi-x-octagon-fill"></i> Void / Reverse Transaction
             </button>
-            <button type="button" class="btn btn-outline-primary btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#batchInvoiceModal">
+            <!-- <button type="button" class="btn btn-outline-primary btn-sm fw-bold" data-bs-toggle="modal" data-bs-target="#batchInvoiceModal">
                 <i class="bi bi-receipt"></i> Batch Invoice Class
-            </button>
+            </button> -->
 
             <a href="<?= Url::toRoute(['site/expense-claims']) ?>" class="btn btn-outline-dark btn-sm fw-bold">
                 <i class="bi bi-clipboard-check-fill"></i> Approve Expense Claims
@@ -352,7 +353,7 @@ foreach ($reconciliationByChannel as $row) {
                                         <?php if ($tx->transaction_type === 'EXPENSE'): ?>
                                             <span class="text-muted fst-italic"><i class="bi bi-receipt me-1"></i>Petty Cash / Dept. Expense</span>
                                         <?php elseif ($tx->student): ?>
-                                            <?= Html::encode($tx->student->name) ?>
+                                            <?= Html::encode(ucfirst($tx->student->name)) ?>
                                         <?php else: ?>
                                             <span class="text-muted fst-italic">Unknown Record</span>
                                         <?php endif; ?>
@@ -552,6 +553,8 @@ foreach ($reconciliationByChannel as $row) {
         <?= Html::endForm() ?>
     </div>
 </div>
+
+
 
 <!-- Batch Invoice Modal -->
 <div class="modal fade kora-modal" id="batchInvoiceModal" tabindex="-1">

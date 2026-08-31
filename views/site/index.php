@@ -467,13 +467,17 @@ function processSimulatedPayment(type) {
         return;
     }
 
+    const idempotencyKey = crypto.randomUUID();  
+
     const params = new URLSearchParams();
     params.append('payment_code', code);
     params.append('amount', amount);
     params.append('type', type);
+    params.append('idempotency_key', idempotencyKey);  
     params.append('<?= Yii::$app->request->csrfParam ?>', '<?= Yii::$app->request->getCsrfToken() ?>');
 
     fetch('<?= \yii\helpers\Url::toRoute(['site/process-payment']) ?>', {
+        // ...unchanged
         method: 'POST',
         body: params,
         headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'X-Requested-With': 'XMLHttpRequest' }

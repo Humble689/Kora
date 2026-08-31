@@ -260,7 +260,6 @@ private function tooManyAttempts(string $bucket, int $maxAttempts, int $windowSe
 
         $referrer = Yii::$app->request->referrer;
         if ($referrer && str_contains($referrer, Yii::$app->request->hostInfo)) {
-            // Avoid redirect loops back onto switch-school itself
             if (!str_contains($referrer, 'switch-school')) {
                 return $this->redirect($referrer);
             }
@@ -411,7 +410,7 @@ private function redirectUserByRole()
     public function actionLookup()
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
-         if ($this->tooManyAttempts('lookup', 8, 60)) {
+         if ($this->tooManyAttempts('lookup', 10, 60)) {
         Yii::$app->response->statusCode = 429;
         return ['success' => false, 'message' => 'Too many attempts. Please wait a moment and try again.'];
     }
@@ -704,7 +703,6 @@ public function actionRegisterDevice()
     $model = new PosDevices();
     $model->status = 'ACTIVE';
 
-    // Non-super-admins can only register devices for their own school.
     if ($currentUser->role !== 'SUPER_ADMIN') {
         $model->school_id = $currentUser->school_id;
     } else {
@@ -715,7 +713,6 @@ public function actionRegisterDevice()
     }
 
     if ($model->load(Yii::$app->request->post())) {
-        // Re-lock school_id server-side for non-super-admins
         if ($currentUser->role !== 'SUPER_ADMIN') {
             $model->school_id = $currentUser->school_id;
         }
@@ -780,7 +777,6 @@ if ($existing) {
             return ['success' => false, 'message' => 'Invalid transaction processing parameters.'];
         }
 
-        // the Target Student
         $student = Students::findOne(['payment_code' => $paymentCode]);
         if (!$student) {
             return ['success' => false, 'message' => 'Target student file not found.'];
@@ -808,6 +804,7 @@ if ($existing) {
             $ledger->transaction_type = $type;
             $ledger->payment_channel = 'ONLINE_PORTAL';
             $ledger->external_reference = 'REF_' . strtoupper(uniqid()); 
+            $ledger->idempotency_key = $idempotencyKey;  
             $ledger->status = 'SUCCESS';
 
             if (!$ledger->save()) {
@@ -846,21 +843,19 @@ if ($existing) {
     }
 
     $model = new SignupForm();
-    $model->currentUserRole = $currentUser->role; // <-- new line
+    $model->currentUserRole = $currentUser->role; 
 
     if (in_array($currentUser->role, ['SCHOOL_ADMIN', 'DOS'])) {
         $model->school_id = $currentUser->school_id;
     }
 
     if ($model->load(Yii::$app->request->post())) {
-        $model->currentUserRole = $currentUser->role; // <-- reassert after load() overwrites attributes
-
+        $model->currentUserRole = $currentUser->role; 
         if (in_array($currentUser->role, ['SCHOOL_ADMIN', 'DOS'])) {
             $model->school_id = $currentUser->school_id;
         }
 
         if ($model->signup()) {
-            // ...rest unchanged...
                 $schoolName = 'Our Institution';
                 $assignedSchool = Schools::findOne($model->school_id);
                 if ($assignedSchool) {
@@ -939,6 +934,62 @@ private function tooManyAttemptsForUser(string $bucket, int $maxAttempts, int $w
     $cache->set($key, $data, $windowSeconds);
 
     return $data['count'] > $maxAttempts;
+}
+
+public function actionAssignDevice()
+{
+    Yii::$app->response->format = Response::FORMAT_JSON;
+    $currentUser = Yii::$app->user->identity;
+
+    if (!in_array($currentUser->role, ['SUPER_ADMIN', 'SCHOOL_ADMIN'], true)) {
+        throw new \yii\web\ForbiddenHttpException();
+    }
+
+    $staffId = (int) Yii::$app->request->post('staff_id');
+    $deviceId = trim((string) Yii::$app->request->post('device_id')); 
+    $newLabel = trim((string) Yii::$app->request->post('label'));
+
+    $staff = User::findOne($staffId);
+    if (!$staff || $staff->role !== 'CANTEEN') {
+        return ['success' => false, 'message' => 'Invalid staff member.'];
+    }
+
+    if ($currentUser->role !== 'SUPER_ADMIN' && $staff->school_id !== $currentUser->school_id) {
+        throw new \yii\web\ForbiddenHttpException('You cannot manage staff outside your school.');
+    }
+
+    Yii::$app->db->createCommand()->update(
+        'pos_devices',
+        ['assigned_staff_id' => null],
+        ['assigned_staff_id' => $staff->id]
+    )->execute();
+
+    if ($deviceId === '') {
+        return ['success' => true, 'message' => 'Terminal unassigned.'];
+    }
+
+    $device = PosDevices::findOne(['id' => $deviceId, 'school_id' => $staff->school_id]);
+    if (!$device) {
+        return ['success' => false, 'message' => 'Device not found for this school.'];
+    }
+
+    $wasReassigned = $device->assigned_staff_id !== null && $device->assigned_staff_id != $staff->id;
+
+    $device->assigned_staff_id = $staff->id;
+    if ($newLabel !== '') {
+        $device->label = $newLabel;
+    }
+
+    if (!$device->save(false, ['assigned_staff_id', 'label'])) {
+        return ['success' => false, 'message' => 'Failed to assign device.'];
+    }
+
+        return [
+        'success' => true,
+        'message' => $wasReassigned
+            ? "Terminal reassigned to {$staff->username} (was previously assigned to another staff member)."
+            : "Terminal assigned to {$staff->username}.",
+    ];
 }
 
 public function actionCanteenDebit()
@@ -1042,6 +1093,7 @@ public function actionCanteenDebit()
         $ledger->transaction_type = 'CANTEEN_SPEND';
         $ledger->payment_channel = 'CANTEEN_POS';
         $ledger->external_reference = 'POS_' . strtoupper(uniqid());
+        $ledger->idempotency_key = $idempotencyKey;  
         $ledger->status = 'SUCCESS';
 
         if (!$ledger->save()) {
@@ -1209,10 +1261,7 @@ public function actionDeviceLookup()
         return $this->render('super_admin', ['schools' => $schools]);
     }
 
-    /**
-     * Alias used by sidebar link site/school-registry.
-     * Renders the same registry list as super-admin (use school-registry.php or super_admin.php).
-     */
+
     public function actionSchoolRegistry()
     {
         if (Yii::$app->user->isGuest || Yii::$app->user->identity->role !== 'SUPER_ADMIN') {
@@ -1220,7 +1269,6 @@ public function actionDeviceLookup()
         }
 
         $schools = Schools::find()->orderBy(['name' => SORT_ASC])->all();
-        // Prefer dedicated school-registry view if present; fall back to super_admin.
         $viewFile = Yii::getAlias('@app/views/site/school-registry.php');
         if (is_file($viewFile)) {
             return $this->render('school-registry', ['schools' => $schools]);
@@ -1333,11 +1381,9 @@ public function actionRegisterStudent()
         $studentModel->optional_subjects = trim($postData['optional_subjects'] ?? '');
         $studentModel->a_level_combination = strtoupper(trim($postData['a_level_combination'] ?? ''));
 
-        // Sex — whitelist against known values so nothing unexpected lands in the column.
         $sex = strtoupper(trim($postData['sex'] ?? ''));
         $studentModel->sex = in_array($sex, ['MALE', 'FEMALE'], true) ? $sex : null;
 
-        // Date of birth — validate it's a real date before saving.
         $dob = trim($postData['date_of_birth'] ?? '');
         if ($dob !== '' && \DateTime::createFromFormat('Y-m-d', $dob) !== false) {
             $studentModel->date_of_birth = $dob;
@@ -1356,7 +1402,6 @@ public function actionRegisterStudent()
         $randomSequence = str_pad((string)rand(0, 999999), 6, '0', STR_PAD_LEFT);
         $generatedCode = '10' . $schoolPrefix . $randomSequence;
 
-        // Integrity safeguard check
         while (Students::findOne(['payment_code' => $generatedCode])) {
             $randomSequence = str_pad((string)rand(0, 999999), 6, '0', STR_PAD_LEFT);
             $generatedCode = '10' . $schoolPrefix . $randomSequence;
@@ -1364,7 +1409,6 @@ public function actionRegisterStudent()
 
         $studentModel->payment_code = $generatedCode;
 
-        // Student photo — optional, converted to base64 same as the Settings page.
         $uploadedFile = \yii\web\UploadedFile::getInstanceByName('student_photo');
         if ($uploadedFile !== null) {
             $allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
@@ -1430,29 +1474,39 @@ public function actionRegisterStudent()
     }
 
     
-    public function actionEditStudent($id)
-    {
-        $userSchoolId = $this->requireWorkingSchoolId();
-        
-        $model = Students::findOne(['id' => $id, 'school_id' => $userSchoolId]);
-        if (!$model) {
-            throw new \yii\web\ForbiddenHttpException("Unauthorized file manipulation request.");
-        }
-
-        if (Yii::$app->request->isPost) {
-            $postData = Yii::$app->request->post('Students');
-            $model->name = trim($postData['name'] ?? '');
-            $model->class_level = trim($postData['class_level'] ?? '');
-            $model->daily_spend_limit = (float)($postData['daily_spend_limit'] ?? 5000);
-
-            if ($model->save()) {
-                Yii::$app->session->setFlash('success', "Student registration details modified successfully.");
-                return $this->redirect(['site/bursar']);
-            }
-        }
-
-        return $this->render('edit_student', ['model' => $model]);
+public function actionEditStudent($id)
+{
+    $userSchoolId = $this->requireWorkingSchoolId();
+    
+    $model = Students::findOne(['id' => $id, 'school_id' => $userSchoolId]);
+    if (!$model) {
+        throw new \yii\web\ForbiddenHttpException("Unauthorized file manipulation request.");
     }
+    if (Yii::$app->request->isPost) {
+        $postData = Yii::$app->request->post('Students');
+        $model->name = trim($postData['name'] ?? '');
+        $model->class_level = trim($postData['class_level'] ?? '');
+        $model->daily_spend_limit = (float)($postData['daily_spend_limit'] ?? 5000);
+
+        // Price floor/ceiling are optional — empty input means "not set", not zero
+        $floorInput = trim((string) ($postData['price_floor'] ?? ''));
+        $ceilingInput = trim((string) ($postData['price_ceiling'] ?? ''));
+
+        $model->price_floor = $floorInput !== '' ? (float) $floorInput : null;
+        $model->price_ceiling = $ceilingInput !== '' ? (float) $ceilingInput : null;
+
+        if ($model->price_floor !== null && $model->price_ceiling !== null && $model->price_floor > $model->price_ceiling) {
+            Yii::$app->session->setFlash('error', 'Price floor cannot be higher than price ceiling.');
+            return $this->render('edit_student', ['model' => $model]);
+        }
+
+        if ($model->save()) {
+            Yii::$app->session->setFlash('success', "Student registration details modified successfully.");
+            return $this->redirect(['site/bursar']);
+        }
+    }
+    return $this->render('edit_student', ['model' => $model]);
+}
  
     public function actionExportStudents()
     {
@@ -2665,55 +2719,113 @@ public function actionVoidTransaction()
     return $this->redirect(['site/bursar']);
 }
 
-public function actionBatchInvoice()
-{
-    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
-        throw new \yii\web\ForbiddenHttpException();
-    }
+// public function actionBatchInvoice()
+// {
+//     if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
+//         throw new \yii\web\ForbiddenHttpException();
+//     }
 
-    $schoolId = $this->requireWorkingSchoolId();
+//     $schoolId = $this->requireWorkingSchoolId();
 
-    if (Yii::$app->request->isPost) {
-        $classLevel = trim(Yii::$app->request->post('class_level', ''));
-        $baseFee = (float) Yii::$app->request->post('base_fee', 0);
-        $applySiblingWaiver = (bool) Yii::$app->request->post('apply_sibling_waiver');
-        $applyStaffWaiver = (bool) Yii::$app->request->post('apply_staff_waiver');
+//     if (Yii::$app->request->isPost) {
+//         $classLevel = trim(Yii::$app->request->post('class_level', ''));
+//         $baseFee = (float) Yii::$app->request->post('base_fee', 0);
+//         $applySiblingWaiver = (bool) Yii::$app->request->post('apply_sibling_waiver');
+//         $applyStaffWaiver = (bool) Yii::$app->request->post('apply_staff_waiver');
 
-        if (empty($classLevel) || $baseFee <= 0) {
-            Yii::$app->session->setFlash('error', 'Select a class and a valid base fee before generating invoices.');
-            return $this->redirect(['site/bursar']);
-        }
+//         if (empty($classLevel) || $baseFee <= 0) {
+//             Yii::$app->session->setFlash('error', 'Select a class and a valid base fee before generating invoices.');
+//             return $this->redirect(['site/bursar']);
+//         }
 
-        $students = Students::find()->where(['school_id' => $schoolId, 'class_level' => $classLevel])->all();
+//         $students = Students::find()->where(['school_id' => $schoolId, 'class_level' => $classLevel])->all();
 
-        if (empty($students)) {
-            Yii::$app->session->setFlash('error', 'No students found in that class.');
-            return $this->redirect(['site/bursar']);
-        }
+//         if (empty($students)) {
+//             Yii::$app->session->setFlash('error', 'No students found in that class.');
+//             return $this->redirect(['site/bursar']);
+//         }
 
-        $dbTransaction = Yii::$app->db->beginTransaction();
-        try {
-            foreach ($students as $student) {
-                $fee = $baseFee;
-                if ($applyStaffWaiver && $student->is_staff_child) {
-                    $fee *= (1 - ($student->staff_waiver_pct ?: 0));
-                }
-                if ($applySiblingWaiver && $student->sibling_group_id && $student->sibling_rank > 1) {
-                    $fee *= (1 - ($student->sibling_waiver_pct ?: 0));
-                }
-                $student->tuition_balance += $fee;
-                $student->save(false);
-            }
-            $dbTransaction->commit();
-            Yii::$app->session->setFlash('success', count($students) . ' students in ' . Html::encode($classLevel) . ' invoiced successfully.');
-        } catch (\Throwable $e) {
-            $dbTransaction->rollBack();
-            Yii::$app->session->setFlash('error', 'Batch invoicing failed: ' . $e->getMessage());
-        }
-    }
+//         $dbTransaction = Yii::$app->db->beginTransaction();
+//         try {
+//             foreach ($students as $student) {
+//                 $fee = $baseFee;
+//                 if ($applyStaffWaiver && $student->is_staff_child) {
+//                     $fee *= (1 - ($student->staff_waiver_pct ?: 0));
+//                 }
+//                 if ($applySiblingWaiver && $student->sibling_group_id && $student->sibling_rank > 1) {
+//                     $fee *= (1 - ($student->sibling_waiver_pct ?: 0));
+//                 }
+//                 $student->tuition_balance += $fee;
+//                 $student->save(false);
+//             }
+//             $dbTransaction->commit();
+//             Yii::$app->session->setFlash('success', count($students) . ' students in ' . Html::encode($classLevel) . ' invoiced successfully.');
+//         } catch (\Throwable $e) {
+//             $dbTransaction->rollBack();
+//             Yii::$app->session->setFlash('error', 'Batch invoicing failed: ' . $e->getMessage());
+//         }
+//     }
 
-    return $this->redirect(['site/bursar']);
-}
+//     return $this->redirect(['site/bursar']);
+// }
+
+// public function actionInvoiceStudent()
+// {
+//     if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
+//         throw new \yii\web\ForbiddenHttpException();
+//     }
+
+//     $schoolId = $this->requireWorkingSchoolId();
+
+//     if (Yii::$app->request->isPost) {
+//         $studentId = (int) Yii::$app->request->post('student_id');
+//         $baseFee   = (float) Yii::$app->request->post('base_fee', 0);
+//         $applySiblingWaiver = (bool) Yii::$app->request->post('apply_sibling_waiver');
+//         $applyStaffWaiver   = (bool) Yii::$app->request->post('apply_staff_waiver');
+
+//         if ($studentId <= 0 || $baseFee <= 0) {
+//             Yii::$app->session->setFlash('error', 'Select a student and enter a valid fee.');
+//             return $this->redirect(['site/bursar']);
+//         }
+
+//         $student = Students::find()
+//             ->where(['id' => $studentId, 'school_id' => $schoolId])
+//             ->one();
+
+//         if (!$student) {
+//             Yii::$app->session->setFlash('error', 'Student not found.');
+//             return $this->redirect(['site/bursar']);
+//         }
+
+//         $fee = $baseFee;
+
+//         // Same waiver logic as batch
+//         if ($applyStaffWaiver && $student->is_staff_child) {
+//             $fee *= (1 - ($student->staff_waiver_pct ?: 0));
+//         }
+//         if ($applySiblingWaiver && $student->sibling_group_id && $student->sibling_rank > 1) {
+//             $fee *= (1 - ($student->sibling_waiver_pct ?: 0));
+//         }
+
+//         $dbTransaction = Yii::$app->db->beginTransaction();
+//         try {
+//             $student->tuition_balance += $fee;
+//             $student->save(false);
+
+//             $dbTransaction->commit();
+//             Yii::$app->session->setFlash('success', 
+//                 Html::encode($student->full_name ?? $student->username) . 
+//                 ' invoiced with UGX ' . number_format($fee, 0) . 
+//                 ($fee < $baseFee ? ' (waiver applied)' : '') . '.'
+//             );
+//         } catch (\Throwable $e) {
+//             $dbTransaction->rollBack();
+//             Yii::$app->session->setFlash('error', 'Invoicing failed: ' . $e->getMessage());
+//         }
+//     }
+
+//     return $this->redirect(['site/bursar']);
+// }
 
 
 public function actionForcePosSync()
@@ -2727,8 +2839,6 @@ public function actionForcePosSync()
 
     $condition = ['status' => 'ACTIVE'];
 
-    // Prefer working school context (session for SUPER_ADMIN, identity for others).
-    // If SUPER_ADMIN has no school selected, sync all active devices platform-wide.
     $workingSchoolId = $this->getWorkingSchoolId();
     if ($workingSchoolId !== null) {
         $condition['school_id'] = $workingSchoolId;
@@ -2927,9 +3037,15 @@ public function actionStaffDirectory()
         'pagination' => ['pageSize' => 25],
     ]);
 
+    $devices = PosDevices::find()
+        ->where(['school_id' => $schoolId, 'status' => 'ACTIVE'])
+        ->orderBy(['label' => SORT_ASC])
+        ->all();
+
     return $this->render('staff-directory', [
         'dataProvider' => $dataProvider,
         'currentUserRole' => $currentUser->role,
+        'devices' => $devices,
     ]);
 }
 
@@ -3141,6 +3257,7 @@ if ($amount <= 0 || $amount > $maxPerTransaction) {
         $ledger->transaction_type = 'SPONSOR_TOPUP';
         $ledger->payment_channel = 'SPONSOR_WEB';
         $ledger->external_reference = 'SPN_' . strtoupper(uniqid());
+        $ledger->idempotency_key = $idempotencyKey; 
         $ledger->status = 'SUCCESS';
         $ledger->sponsor_name = $sponsorName !== '' ? $sponsorName : null;
 
@@ -3184,5 +3301,8 @@ $student = Students::findOne(['payment_code' => $code, 'sponsorship_enabled' => 
         'sponsor_url' => Url::toRoute(['site/sponsor', 'code' => $student->sponsor_code], true),
     ];
 }
+
+
+
 
 }

@@ -3,6 +3,7 @@
 /** @var app\models\Students $student */
 /** @var app\models\Transactions[] $statementLogs */
 
+use yii\bootstrap5\Html;
 use yii\helpers\Url;
 
 $this->title = 'KORA Portal - ' . $student->name;
@@ -28,7 +29,6 @@ $this->title = 'KORA Portal - ' . $student->name;
         </div>
     </div>
 </div>
-
 <script>
 document.getElementById('sponsorToggle').addEventListener('change', function () {
     const params = new URLSearchParams();
@@ -53,11 +53,56 @@ document.getElementById('sponsorToggle').addEventListener('change', function () 
 });
 
 function copySponsorLink() {
-    const input = document.getElementById('sponsorLinkInput');
-    input.select();
-    navigator.clipboard.writeText(input.value);
+    const copyText = document.getElementById("sponsorLinkInput");
+    if (!copyText) return;
+
+    // Select the text field content
+    copyText.select();
+    copyText.setSelectionRange(0, 99999); // For mobile devices
+
+    // Target the button for visual feedback
+    const copyBtn = document.querySelector("#sponsorLinkBlock .btn");
+    const originalText = copyBtn ? copyBtn.innerText : "Copy";
+
+    // Helper function to update button state
+    function showSuccess() {
+        if (copyBtn) {
+            copyBtn.innerText = "Copied!";
+            copyBtn.classList.replace("btn-outline-secondary", "btn-success");
+            setTimeout(() => {
+                copyBtn.innerText = originalText;
+                copyBtn.classList.replace("btn-success", "btn-outline-secondary");
+            }, 2000);
+        } else {
+            alert("Link copied to clipboard!");
+        }
+    }
+
+    // Modern API Attempt
+    if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(copyText.value)
+            .then(showSuccess)
+            .catch(err => useFallback(copyText.value));
+    } else {
+        // Fallback for older browsers or HTTP environments
+        useFallback(copyText.value);
+    }
+
+    function useFallback(text) {
+        try {
+            const successful = document.execCommand('copy');
+            if (successful) {
+                showSuccess();
+            } else {
+                alert("Failed to copy. Please manually copy the link.");
+            }
+        } catch (err) {
+            alert("Fallback failed. Please manually copy the link.");
+        }
+    }
 }
 </script>
+
 
 <div class="site-student-dashboard bg-light py-5 min-vh-100">
     <div class="container max-w-5xl">
@@ -164,3 +209,19 @@ function copySponsorLink() {
 .tracking-wider { letter-spacing: 0.05em; }
 .fw-black { font-weight: 900; }
 </style>
+
+<style>
+/* Force the toggle to be visible when it is OFF (not checked) */
+.form-check-input:not(:checked) {
+    background-color: #94a3b8 !important; /* Medium slate gray */
+    border-color: #64748b !important;     /* Darker border gray */
+    opacity: 1 !important;                 /* Ensures no transparency hides it */
+}
+
+/* Optional: Customize the color when it is ON (checked) */
+.form-check-input:checked {
+    background-color: #0d6efd !important;  /* Bootstrap Blue */
+    border-color: #0d6efd !important;
+}
+</style>
+

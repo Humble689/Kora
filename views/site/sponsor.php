@@ -200,12 +200,15 @@ function submitSponsorGift() {
         return;
     }
 
+    const idempotencyKey = crypto.randomUUID();   
+
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Sending...';
 
     const params = new URLSearchParams();
     params.append('amount', amount);
     params.append('sponsor_name', document.getElementById('sponsorNameInput').value);
+    params.append('idempotency_key', idempotencyKey);  
     params.append('<?= Yii::$app->request->csrfParam ?>', '<?= Yii::$app->request->getCsrfToken() ?>');
 
     fetch('<?= Url::toRoute(['site/sponsor-topup', 'code' => $sponsorCode]) ?>', {

@@ -201,9 +201,12 @@ function commitCanteenDeduction() {
         return;
     }
 
+    const idempotencyKey = crypto.randomUUID();   
+
     const params = new URLSearchParams();
     params.append('payment_code', code);
     params.append('amount', amount);
+    params.append('idempotency_key', idempotencyKey);   
     params.append('<?= Yii::$app->request->csrfParam ?>', '<?= Yii::$app->request->getCsrfToken() ?>');
 
     fetch('<?= yii\helpers\Url::toRoute(['site/canteen-debit']) ?>', {

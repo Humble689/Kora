@@ -129,7 +129,7 @@ $classSortUrl  = Url::toRoute([
                                     <td class="ps-3"><?= $studentPages->getOffset() + $i + 1 ?></td>
 
                                     <td class="ps-4 fw-bold text-dark">
-                                        <?= Html::encode($st->name) ?>
+                                        <?= Html::encode(ucfirst($st->name)) ?>
                                         <?php if ($isNoShow): ?>
                                             <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1">No-Show</span>
                                         <?php endif; ?>
