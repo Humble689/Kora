@@ -10,13 +10,7 @@ $this->title = 'KORA Canteen Counter Terminal';
 ?>
 
 <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3 border-secondary-subtle">
-    <div>
-        <span class="text-success text-uppercase tracking-wider fw-bold small d-block mb-1" style="font-size: 11px;">
-            Canteen Check-Out Counter
-        </span>
-        <h1 class="h3 fw-bold text-dark mb-1">Cashless Pocket Money Terminal</h1>
-        <p class="text-muted small mb-0">Scan barcode or enter the student 10-digit code to execute terminal wallet deductions.</p>
-            </div>
+    
         <?php
         $deviceLabel = 'No device assigned — contact your administrator';
         $deviceOk = false;
@@ -30,24 +24,28 @@ $this->title = 'KORA Canteen Counter Terminal';
             }
         }
         ?>
-        <div class="text-end">
-            <span class="badge <?= $deviceOk ? 'bg-light text-dark' : 'bg-danger text-white' ?> border small" id="posDeviceBadge">
-                <i class="bi bi-hdd-stack"></i> <span id="posDeviceLabel"><?= Html::encode($deviceLabel) ?></span>
-            </span>
-        </div>
+        
 </div>  
 
 <div class="site-canteen bg-light py-5 min-vh-100 text-dark">
     <div class="container-fluid" style="max-width: 1200px;">
         
         <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3 border-secondary-subtle">
+            
+
             <div>
-                <span class="text-success text-uppercase tracking-wider  fw-bold small d-block mb-1" style="font-size: 11px;">
-                    Canteen Check-Out Counter
-                </span>
-                <h1 class="h3 fw-bold text-dark mb-1">Cashless Pocket Money Terminal</h1>
-                <p class="text-muted small mb-0">Scan barcode or enter the student 10-digit code to execute terminal wallet deductions.</p>
+        <span class="text-success text-uppercase tracking-wider fw-bold small d-block mb-1" style="font-size: 11px;">
+            Canteen Check-Out Counter
+        </span>
+        <h1 class="h3 fw-bold text-dark mb-1">Cashless Pocket Money Terminal</h1>
+        <p class="text-muted small mb-0">Scan barcode or enter the student 10-digit code to execute terminal wallet deductions.</p>
             </div>
+
+            <div class="text-end">
+            <span class="badge <?= $deviceOk ? 'bg-light text-dark' : 'bg-danger text-white' ?> border small" id="posDeviceBadge">
+                <i class="bi bi-hdd-stack"></i> <span id="posDeviceLabel"><?= Html::encode($deviceLabel) ?></span>
+            </span>
+        </div>
         </div>
 
         <div class="row g-4">

@@ -80,7 +80,7 @@ $classSortUrl  = Url::toRoute([
                             <?php if (!empty($searchKeyword) || $balanceFilter !== 'ALL' || $classLevel !== 'ALL' || $currentSort !== ''): ?>
                                 <a href="<?= Url::toRoute(['site/students-directory']) ?>" class="btn btn-sm btn-light border-0 d-flex align-items-center"><i class="bi bi-x"></i></a>
                             <?php endif; ?>
-                            <button type="submit" class="btn btn-dark fw-bold border-0 px-3">Filter</button>
+                            <button type="submit" class="btn btn-primary fw-bold border-0 px-3">Filter</button>
                         </div>
                     </form>
                 </div>
@@ -178,8 +178,8 @@ $classSortUrl  = Url::toRoute([
                                                 'class' => 'm-0 d-inline-block',
                                                 'onsubmit' => "return confirm('CRITICAL WARNING:\n\nAre you completely sure you want to permanently delete student profile: \"{$st->name}\"?\nThis will completely wipe out their transactional ledger stream records history logs! This action is irreversible.');",
                                             ]) ?>
-                                                <button type="submit" class="btn btn-danger btn-sm rounded-2 fw-semibold d-inline-flex align-items-center gap-1" title="Delete Student">
-                                                    <i class="bi bi-trash3-fill"></i> <span class="d-none d-lg-inline">Delete</span>
+                                                <button type="submit" class="btn btn-outline-danger btn-sm rounded-2 fw-semibold d-inline-flex align-items-center gap-1" title="Delete Student">
+                                                    <i class="bi bi-trash3-fill"></i> <span class="d-none d-lg-inline btn-outline-danger">Delete</span>
                                                 </button>
                                             <?= Html::endForm() ?>
 
@@ -208,7 +208,7 @@ $classSortUrl  = Url::toRoute([
                         <div class="kora-student-card border-bottom p-3 <?= $isNoShow ? 'opacity-75' : '' ?>">
                             <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
                                 <div class="fw-bold text-dark">
-                                    <?= Html::encode($st->name) ?>
+                                    <?= Html::encode(ucfirst($st->name)) ?>
                                     <?php if ($isNoShow): ?>
                                         <span class="badge bg-secondary-subtle text-secondary-emphasis ms-1">No-Show</span>
                                     <?php endif; ?>

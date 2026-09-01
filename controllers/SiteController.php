@@ -310,33 +310,6 @@ private function tooManyAttempts(string $bucket, int $maxAttempts, int $windowSe
 }
 
 
-public function actionLogin()
-{
-    if (!Yii::$app->user->isGuest) {
-        return $this->redirectUserByRole();
-    }
-
-    $model = new LoginForm($this->security);
-
-    if ($model->load(Yii::$app->request->post()) && $model->login()) {
-        return $this->redirectUserByRole();
-    }
-
-    $user = User::findOne(['username' => $model->username]);
-
-if ($user && $user->status !== 'ACTIVE') {
-    Yii::$app->session->setFlash('error', 'This account has been deactivated. Contact your school administrator.');
-    return $this->render('login', ['model' => $model]);
-}
-
-    $model->password = '';
-
-    return $this->render('login', [
-        'model' => $model,
-    ]);
-}
-
-
 private function redirectUserByRole()
 {
     $role = Yii::$app->user->identity->role;
@@ -350,6 +323,145 @@ private function redirectUserByRole()
         default           => ['site/bursar'],
     });
 }
+
+private function loginAttemptsExceeded(string $username): bool
+{
+    $cache = Yii::$app->cache;
+    $key = 'login_attempts_' . strtolower(trim($username));
+    $data = $cache->get($key);
+
+    return $data !== false && $data['count'] >= 5;
+}
+
+private function recordFailedLogin(string $username): void
+{
+    $cache = Yii::$app->cache;
+    $key = 'login_attempts_' . strtolower(trim($username));
+    $windowSeconds = 900; // 15 minutes
+    $now = time();
+
+    $data = $cache->get($key);
+    if ($data === false || $data['expires'] < $now) {
+        $data = ['count' => 0, 'expires' => $now + $windowSeconds];
+    }
+    $data['count']++;
+    $cache->set($key, $data, $windowSeconds);
+}
+
+private function clearFailedLogins(string $username): void
+{
+    Yii::$app->cache->delete('login_attempts_' . strtolower(trim($username)));
+}
+
+public function actionLogin()
+{
+    if (!Yii::$app->user->isGuest) {
+        return $this->redirectUserByRole();
+    }
+
+    $model = new LoginForm($this->security);
+
+    if ($model->load(Yii::$app->request->post())) {
+
+        if ($this->loginAttemptsExceeded($model->username)) {
+            Yii::$app->session->setFlash('error', 'Too many failed login attempts. Please try again in 15 minutes.');
+            $model->password = '';
+            return $this->render('login', ['model' => $model]);
+        }
+
+        if ($model->login()) {
+            $this->clearFailedLogins($model->username);
+            return $this->redirectUserByRole();
+        }
+
+        $this->recordFailedLogin($model->username);
+    }
+
+    $user = User::findOne(['username' => $model->username]);
+    if ($user && $user->status !== 'ACTIVE') {
+        Yii::$app->session->setFlash('error', 'This account has been deactivated. Contact your school administrator.');
+        return $this->render('login', ['model' => $model]);
+    }
+
+    $model->password = '';
+    return $this->render('login', [
+        'model' => $model,
+    ]);
+}
+
+public function actionRequestPasswordReset()
+{
+    $model = new \yii\base\DynamicModel(['email']);
+    $model->addRule('email', 'required')->addRule('email', 'email');
+
+    if ($model->load(Yii::$app->request->post()) && $model->validate()) {
+
+        if ($this->tooManyAttempts('password_reset_request', 5, 900)) {
+            Yii::$app->session->setFlash('error', 'Too many requests. Please wait and try again.');
+            return $this->render('request-password-reset', ['model' => $model]);
+        }
+
+        $user = User::findOne(['email' => trim($model->email)]);
+
+        // Same message either way — never reveal whether the email exists
+        Yii::$app->session->setFlash('success', 'If an account exists for that email, a reset link has been sent.');
+
+        if ($user) {
+            $user->generatePasswordResetToken();
+            if ($user->save(false, ['password_reset_token', 'password_reset_expires_at'])) {
+                $resetUrl = Url::toRoute(['site/reset-password', 'token' => $user->password_reset_token], true);
+
+                Yii::$app->mailer->compose()
+                    ->setFrom(['marktravis689@gmail.com' => 'KORA'])
+                    ->setTo($user->email)
+                    ->setSubject('Reset Your KORA Password')
+                    ->setHtmlBody("
+                        <div style='font-family: Arial, sans-serif; padding: 20px; line-height: 1.6;'>
+                            <h2 style='color: #16a34a;'>Password Reset Requested</h2>
+                            <p>We received a request to reset the password for your KORA account (<strong>{$user->username}</strong>).</p>
+                            <p><a href='{$resetUrl}' style='background-color: #16a34a; color: white; padding: 10px 20px; text-decoration: none; font-weight: bold; border-radius: 4px; display: inline-block;'>Reset Password</a></p>
+                            <p style='color: #6b7280; font-size: 13px;'>This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
+                        </div>
+                    ")
+                    ->send();
+            }
+        }
+
+        return $this->redirect(['site/login']);
+    }
+
+    return $this->render('request-password-reset', ['model' => $model]);
+}
+
+public function actionResetPassword(string $token)
+{
+    $user = User::findByPasswordResetToken($token);
+
+    if (!$user) {
+        Yii::$app->session->setFlash('error', 'This password reset link is invalid or has expired. Please request a new one.');
+        return $this->redirect(['site/request-password-reset']);
+    }
+
+    $model = new \yii\base\DynamicModel(['password', 'password_repeat']);
+    $model->addRule(['password', 'password_repeat'], 'required')
+          ->addRule('password', 'string', ['min' => 6])
+          ->addRule('password_repeat', 'compare', ['compareAttribute' => 'password', 'message' => "Passwords don't match."]);
+
+    if ($model->load(Yii::$app->request->post()) && $model->validate()) {
+        $user->setPassword($model->password);
+        $user->clearPasswordResetToken();
+
+        if ($user->save(false, ['password_hash', 'password_reset_token', 'password_reset_expires_at'])) {
+            $this->clearFailedLogins($user->username); // also lift any lockout from before
+
+            Yii::$app->session->setFlash('success', 'Your password has been reset. Please log in.');
+            return $this->redirect(['site/login']);
+        }
+    }
+
+    return $this->render('reset-password', ['model' => $model, 'token' => $token]);
+}
+
 
 
 
@@ -1079,7 +1191,7 @@ public function actionCanteenDebit()
                 'message' => 'Transaction blocked! Purchase exceeds the student\'s remaining daily spending limit of UGX ' . number_format($remainingLimit, 0),
             ];
         }
-
+        $balanceBeforeDebit = (float) $student->swallet_balance; 
         $student->swallet_balance -= $chargeAmount;
         if (!$student->save()) {
             throw new \Exception('Failed to debit pocket money profile.');
@@ -1102,11 +1214,32 @@ public function actionCanteenDebit()
 
         $device->last_synced_at = date('Y-m-d H:i:s');
         $device->save(false);
-
         $dbTransaction->commit();
+        if ($student->low_balance_enabled
+            && $student->low_balance_action === 'NOTIFY'
+            && !empty($student->parent_email)
+            && $balanceBeforeDebit > (float) $student->low_balance_threshold
+            && (float) $student->swallet_balance <= (float) $student->low_balance_threshold
+        ) {
+            try {
+                Yii::$app->mailer->compose()
+                    ->setFrom(['marktravis689@gmail.com' => 'KORA'])
+                    ->setTo($student->parent_email)
+                    ->setSubject('Low Wallet Balance — ' . $student->name)
+                    ->setHtmlBody("
+                        <div style='font-family: Arial, sans-serif; padding: 20px; line-height: 1.6;'>
+                            <h2 style='color: #d97706;'>Low Wallet Balance</h2>
+                            <p><strong>{$student->name}</strong>'s canteen wallet balance is now UGX " . number_format((float) $student->swallet_balance, 0) . ", at or below your alert threshold of UGX " . number_format((float) $student->low_balance_threshold, 0) . ".</p>
+                            <p>Top up their wallet from the student dashboard whenever convenient.</p>
+                        </div>
+                    ")
+                    ->send();
+            } catch (\Exception $e) {
+                Yii::error('Low balance notification failed: ' . $e->getMessage(), __METHOD__);
+            }
+        }
 
         $newRemainingLimit = $remainingLimit - $chargeAmount;
-
         return [
             'success' => true,
             'message' => 'Purchase approved successfully!',
@@ -1488,10 +1621,8 @@ public function actionEditStudent($id)
         $model->class_level = trim($postData['class_level'] ?? '');
         $model->daily_spend_limit = (float)($postData['daily_spend_limit'] ?? 5000);
 
-        // Price floor/ceiling are optional — empty input means "not set", not zero
         $floorInput = trim((string) ($postData['price_floor'] ?? ''));
         $ceilingInput = trim((string) ($postData['price_ceiling'] ?? ''));
-
         $model->price_floor = $floorInput !== '' ? (float) $floorInput : null;
         $model->price_ceiling = $ceilingInput !== '' ? (float) $ceilingInput : null;
 
@@ -1499,6 +1630,27 @@ public function actionEditStudent($id)
             Yii::$app->session->setFlash('error', 'Price floor cannot be higher than price ceiling.');
             return $this->render('edit_student', ['model' => $model]);
         }
+
+        // Low balance alert settings
+        $lowBalanceEnabled = ($postData['low_balance_enabled'] ?? '') === '1';
+        $parentEmail = trim((string) ($postData['parent_email'] ?? ''));
+        $threshold = trim((string) ($postData['low_balance_threshold'] ?? ''));
+
+        if ($lowBalanceEnabled) {
+            if (empty($parentEmail) || !filter_var($parentEmail, FILTER_VALIDATE_EMAIL)) {
+                Yii::$app->session->setFlash('error', 'A valid parent email is required to enable low balance alerts.');
+                return $this->render('edit_student', ['model' => $model]);
+            }
+            if ($threshold === '' || (float) $threshold <= 0) {
+                Yii::$app->session->setFlash('error', 'Enter a valid low balance threshold.');
+                return $this->render('edit_student', ['model' => $model]);
+            }
+        }
+
+        $model->low_balance_enabled = $lowBalanceEnabled;
+        $model->low_balance_action = $lowBalanceEnabled ? 'NOTIFY' : null;
+        $model->low_balance_threshold = $lowBalanceEnabled ? (float) $threshold : null;
+        $model->parent_email = $parentEmail !== '' ? $parentEmail : null;
 
         if ($model->save()) {
             Yii::$app->session->setFlash('success', "Student registration details modified successfully.");
@@ -1598,12 +1750,11 @@ public function actionEditStudent($id)
 
         if ((float)$student->swallet_balance > 0) {
             Yii::$app->session->setFlash('error', "Deletion Blocked! Student profile contains unspent funds. Please clear or refund their S-Wallet vault cash balance of UGX " . number_format((float)$student->swallet_balance, 0) . " before deleting.");
-            return $this->redirect(['site/bursar']);
+            return $this->redirect(['site/students-directory']);
         }
 
         $dbTransaction = Yii::$app->db->beginTransaction();
         try {
-            //If you have matching transaction ledger line rows, cascade delete them or leave them unlinked
             Transactions::deleteAll(['student_id' => $student->id]);
             
             if ($student->delete()) {

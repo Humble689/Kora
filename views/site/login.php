@@ -7,6 +7,8 @@ declare(strict_types=1);
 
 use yii\bootstrap5\Html;
 use yii\bootstrap5\ActiveForm;
+use yii\helpers\Url;
+
 ?>
 
 <div class="login-page d-flex align-items-center justify-content-center">
@@ -163,7 +165,7 @@ use yii\bootstrap5\ActiveForm;
 
                             <!-- Links -->
                             <div class="mb-3">
-                                <a href="#" class="small text-decoration-none fw-semibold" style="color: #0d6efd !important;">
+                                <a href="<?= Url::toRoute(['site/request-password-reset']) ?>" class="small text-decoration-none fw-semibold" style="color: #0d6efd !important;">
                                     Forgot password?
                                 </a>
                             </div>

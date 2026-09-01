@@ -96,6 +96,46 @@ $hasCeiling = $model->price_ceiling !== null;
 
                     <div class="es-section-label"><i class="bi bi-sliders"></i> Per-Purchase Guardrails <span class="badge bg-light text-muted border ms-1" style="font-size: 10px; font-weight: 600;">Optional</span></div>
 
+                    <div class="es-section-label"><i class="bi bi-bell"></i> Low Balance Alerts <span class="badge bg-light text-muted border ms-1" style="font-size: 10px; font-weight: 600;">Optional</span></div>
+
+<?php $lowBalanceEnabled = $model->low_balance_enabled ?? false; ?>
+<div class="guardrail-toggle <?= $lowBalanceEnabled ? 'enabled' : '' ?>" id="lowBalanceToggleCard">
+    <div class="guardrail-toggle-head">
+        <div>
+            <h6>Notify Parent When Balance Is Low</h6>
+            <p>Sends an email when the wallet drops to or below a set amount.</p>
+        </div>
+        <div class="form-check form-switch mb-0">
+            <input class="form-check-input" type="checkbox" name="Students[low_balance_enabled]" value="1" id="lowBalanceEnabled" <?= $lowBalanceEnabled ? 'checked' : '' ?> onchange="toggleLowBalanceBlock()">
+        </div>
+    </div>
+    <div class="guardrail-input-block <?= $lowBalanceEnabled ? '' : 'd-none' ?>" id="lowBalanceInputBlock">
+        <label class="form-label small fw-semibold mt-2">Parent Email</label>
+        <input type="email" name="Students[parent_email]" id="parentEmailInput" class="form-control mb-2" placeholder="parent@example.com" value="<?= Html::encode($model->parent_email ?? '') ?>">
+
+        <label class="form-label small fw-semibold">Alert Threshold (UGX)</label>
+        <input type="number" name="Students[low_balance_threshold]" id="lowBalanceThresholdInput" class="form-control" placeholder="e.g. 5000" value="<?= Html::encode($model->low_balance_threshold ?? '') ?>">
+    </div>
+</div>
+
+<script>
+function toggleLowBalanceBlock() {
+    const checkbox = document.getElementById('lowBalanceEnabled');
+    const card = document.getElementById('lowBalanceToggleCard');
+    const block = document.getElementById('lowBalanceInputBlock');
+
+    if (checkbox.checked) {
+        card.classList.add('enabled');
+        block.classList.remove('d-none');
+    } else {
+        card.classList.remove('enabled');
+        block.classList.add('d-none');
+        document.getElementById('parentEmailInput').value = '';
+        document.getElementById('lowBalanceThresholdInput').value = '';
+    }
+}
+</script>
+
                     <div class="guardrail-toggle <?= $hasFloor ? 'enabled' : '' ?>" id="floorToggleCard">
                         <div class="guardrail-toggle-head">
                             <div>
