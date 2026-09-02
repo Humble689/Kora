@@ -194,7 +194,7 @@ function toggleGuardrail(type) {
     } else {
         card.classList.remove('enabled');
         block.classList.add('d-none');
-        input.value = ''; // clear so an unchecked toggle submits empty, not a stale number
+        input.value = ''; 
     }
 }
 
@@ -202,16 +202,14 @@ function toggleGuardrail(type) {
 </script>
 
 <style>
-/* Force the toggle to be visible when it is OFF (not checked) */
 .form-check-input:not(:checked) {
-    background-color: #94a3b8 !important; /* Medium slate gray */
-    border-color: #64748b !important;     /* Darker border gray */
-    opacity: 1 !important;                 /* Ensures no transparency hides it */
+    background-color: #94a3b8 !important; 
+    border-color: #64748b !important;    
+    opacity: 1 !important;              
 }
 
-/* Optional: Customize the color when it is ON (checked) */
 .form-check-input:checked {
-    background-color: #0d6efd !important;  /* Bootstrap Blue */
+    background-color: #0d6efd !important; 
     border-color: #0d6efd !important;
 }
 </style>

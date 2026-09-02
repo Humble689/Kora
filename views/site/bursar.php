@@ -48,6 +48,16 @@ foreach ($reconciliationByChannel as $row) {
 }
 ?>
 
+<?php
+$currentTermRollover = \app\models\TermRollovers::find()
+    ->where(['school_id' => $workingSchool->id ?? 0])
+    ->andWhere(['!=', 'status', 'REVERSED'])
+    ->orderBy(['created_at' => SORT_DESC])
+    ->one();
+?>
+
+
+
 <div class="site-bursar bg-light py-4 min-vh-100">
     <div class="container-fluid" style="max-width: 90rem;">
 
@@ -65,29 +75,100 @@ foreach ($reconciliationByChannel as $row) {
             </div>
         <?php endif; ?>
 
-        <!-- Header -->
-        <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 border-bottom pb-3 gap-3">
-            <div>
-               <h1 class="h3 fw-bold text-dark mb-0">
-                    <?= Html::encode($workingSchool->name ?? 'Financial Collections') ?> Control Centre
-                </h1>
-                <p class="text-muted small mb-0">Real-time ledger overview and cross-channel multi-tenant settlement audits.</p>
-            </div>
-            <div class="d-flex align-items-center flex-wrap gap-2 kora-header-actions">
-                <?= Html::beginForm(['site/term-rollover'], 'post', [
-                    'class' => 'm-0 d-inline-block',
-                    'onsubmit' => "return confirm('NEW TERM ROLLOVER WARNING\\n\\nAre you completely sure you want to start a new academic term?\\n\\nThis will automatically bill every active student the new term fee of UGX " . number_format($stats['base_tuition_fees'] ?? 850000, 0) . " and carry forward previous debts.\\n\\nAll student pocket money balances WILL safely continue untouched! This cannot be undone.');"
-                ]) ?>
-                    <button type="submit" class="btn btn-outline-primary fw-bold rounded-3 shadow-sm px-3 d-flex align-items-center justify-content-center gap-2">
-                        <i class="bi bi-arrow-repeat"></i> Start New Term
-                    </button>
-                <?= Html::endForm() ?>
+        
 
-                <a href="<?= Url::toRoute(['site/register-student']) ?>" class="btn btn-primary fw-bold rounded-3 shadow-sm px-3 d-flex align-items-center justify-content-center gap-2">
-                    <i class="bi bi-person-plus-fill"></i> Enroll Student
-                </a>
+<!-- Header -->
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 border-bottom pb-3 gap-3">
+    <div>
+        <h1 class="h3 fw-bold text-dark mb-0">
+            <?= Html::encode($workingSchool->name ?? 'Financial Collections') ?> Control Centre
+        </h1>
+        <p class="text-muted small mb-1">Real-time ledger overview and cross-channel multi-tenant settlement audits.</p>
+<?php if ($currentTermRollover): ?>
+    <?php
+    $termBadgeClass = match ($currentTermRollover->status) {
+        'ACTIVE' => ' text-success',
+        'HISTORICAL' => 'bg-light text-muted border',
+        default => 'text-danger',
+    };
+    $termBadgeLabel = match ($currentTermRollover->status) {
+        'ACTIVE' => 'Current: ',
+        'HISTORICAL' => 'On record: ',
+        default => 'Last term (reversed): ',
+    };
+    ?>
+    <span class="badge <?= $termBadgeClass ?> fw-semibold">
+        <i class="bi bi-calendar-check me-1"></i>
+        <?= $termBadgeLabel ?><?= Html::encode($currentTermRollover->term_label) ?>
+    </span>
+<?php else: ?>
+    <span class="badge bg-light text-muted border">
+        <i class="bi bi-calendar-x me-1"></i> No term started yet
+    </span>
+<?php endif; ?>
+    </div>
+    <div class="d-flex align-items-center flex-wrap gap-2 kora-header-actions">
+
+        <?= Html::a('<i class="bi bi-clock-history me-1"></i> Term History', ['site/term-history'], ['class' => 'btn btn-outline-secondary fw-bold rounded-3 shadow-sm px-3']) ?>
+
+        <button type="button" class="btn btn-outline-primary fw-bold rounded-3 shadow-sm px-3 d-flex align-items-center justify-content-center gap-2" data-bs-toggle="modal" data-bs-target="#startTermModal">
+            <i class="bi bi-arrow-repeat"></i> Start New Term
+        </button>
+
+        <a href="<?= Url::toRoute(['site/register-student']) ?>" class="btn btn-primary fw-bold rounded-3 shadow-sm px-3 d-flex align-items-center justify-content-center gap-2">
+            <i class="bi bi-person-plus-fill"></i> Enroll Student
+        </a>
+    </div>
+</div>
+
+<!-- Start New Term Modal -->
+<div class="modal fade kora-modal" id="startTermModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <?= Html::beginForm(['site/term-rollover'], 'post', ['class' => 'm-0']) ?>
+        <div class="modal-content rounded-4 border-0">
+            <div class="modal-header border-0 pb-0">
+                <h5 class="modal-title fw-bold"><i class="bi bi-arrow-repeat me-1"></i> Start New Term</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body pt-2">
+                <div class="row g-2 mb-3">
+                    <div class="col-6">
+                        <label class="form-label small fw-semibold text-muted text-uppercase" style="font-size: 11px;">Term</label>
+                        <select name="term_number" class="form-select" required>
+                            <option value="">Select...</option>
+                            <option value="1">Term 1</option>
+                            <option value="2">Term 2</option>
+                            <option value="3">Term 3</option>
+                        </select>
+                    </div>
+                    <div class="col-6">
+                        <label class="form-label small fw-semibold text-muted text-uppercase" style="font-size: 11px;">Year</label>
+                        <select name="year" class="form-select" required>
+                            <option value="">Select...</option>
+                            <?php
+                            $currentYear = (int) date('Y');
+                            for ($y = $currentYear - 1; $y <= $currentYear + 1; $y++):
+                            ?>
+                                <option value="<?= $y ?>" <?= $y === $currentYear ? 'selected' : '' ?>><?= $y ?></option>
+                            <?php endfor; ?>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="alert alert-warning small mb-0">
+                    <strong>This will bill every active student</strong> the new term fee of UGX <?= number_format($stats['base_tuition_fees'] ?? 850000, 0) ?> and carry forward previous debts.
+                    <br><br>
+                    Pocket money balances stay untouched. This action can only be reversed <strong>immediately after</strong>, before any newer term starts — after that it's permanent.
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0">
+                <button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancel</button>
+                <button type="submit" class="btn btn-primary fw-bold">Confirm & Start Term</button>
             </div>
         </div>
+        <?= Html::endForm() ?>
+    </div>
+</div>
 
         <!-- Key Bursar Actions -->
         <div class="d-flex flex-wrap gap-2 mb-4 kora-actions-bar">
@@ -743,7 +824,6 @@ foreach ($reconciliationByChannel as $row) {
         background-color: #fafbfd;
     }
 
-    /* ---------- Responsive tweaks for small devices ---------- */
     @media (max-width: 767.98px) {
         .site-bursar .card.p-4 {
             padding: 1.1rem !important;

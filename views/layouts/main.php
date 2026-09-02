@@ -414,6 +414,7 @@ if (!Yii::$app->user->isGuest && Yii::$app->user->identity->role === 'SUPER_ADMI
                     <a href="<?= Url::toRoute(['site/teacher-grading']) ?>" class="sidebar-link <?= $currentRoute === 'site/teacher-grading' ? 'active' : '' ?>"><i class="bi bi-journal-check"></i> Enter Term Marks</a>
                     <a href="<?= Url::toRoute(['site/dos-review']) ?>" class="sidebar-link <?= $currentRoute === 'site/dos-review' ? 'active' : '' ?>"><i class="bi bi-clipboard-check"></i> Review &amp; Seal Marks</a>
                     <a href="<?= Url::toRoute(['site/print-reports']) ?>" class="sidebar-link <?= $currentRoute === 'site/print-reports' ? 'active' : '' ?>"><i class="bi bi-printer"></i> Print Report Cards</a>
+                    <a href="<?= Url::toRoute(['site/term-history']) ?>" class="sidebar-link <?= $currentRoute === 'site/term-history' ? 'active' : '' ?>"><i class="bi bi-calendar3"></i> Term History</a>
                 <?php endif; ?>
 
                 <!-- SCHOOL MASTER ADMINISTRATOR SIDEBAR DESK -->
@@ -434,6 +435,7 @@ if (!Yii::$app->user->isGuest && Yii::$app->user->identity->role === 'SUPER_ADMI
                     <a href="<?= Url::toRoute(['site/manage-assignments']) ?>" class="sidebar-link <?= $currentRoute === 'site/manage-assignments' ? 'active' : '' ?>"><i class="bi bi-person-gear"></i> Allocate Teachers</a>
                     <a href="<?= Url::toRoute(['site/dos-review']) ?>" class="sidebar-link <?= $currentRoute === 'site/dos-review' ? 'active' : '' ?>"><i class="bi bi-clipboard-check"></i> Review &amp; Seal Marks</a>
                     <a href="<?= Url::toRoute(['site/print-reports']) ?>" class="sidebar-link <?= $currentRoute === 'site/print-reports' ? 'active' : '' ?>"><i class="bi bi-printer"></i> Print Report Cards</a>
+                    <a href="<?= Url::toRoute(['site/term-history']) ?>" class="sidebar-link <?= $currentRoute === 'site/term-history' ? 'active' : '' ?>"><i class="bi bi-calendar3"></i> Term History</a>
                 <?php endif; ?>
 
 
@@ -445,6 +447,7 @@ if (!Yii::$app->user->isGuest && Yii::$app->user->identity->role === 'SUPER_ADMI
                     <a href="<?= Url::toRoute(['site/students-directory']) ?>" class="sidebar-link <?= $currentRoute === 'site/students-directory' ? 'active' : '' ?>"><i class="bi bi-people-fill"></i> Student Directory</a>
                     <a href="<?= Url::toRoute(['site/register-student']) ?>" class="sidebar-link <?= $currentRoute === 'site/register-student' ? 'active' : '' ?>"><i class="bi bi-person-plus"></i> Enroll Student</a>
                     <a href="<?= Url::toRoute(['site/expense-claims']) ?>" class="sidebar-link <?= $currentRoute === 'site/expense-claims' ? 'active' : '' ?>"><i class="bi bi-clipboard-check-fill"></i> Expense Claims</a>
+                    <a href="<?= Url::toRoute(['site/term-history']) ?>" class="sidebar-link <?= $currentRoute === 'site/term-history' ? 'active' : '' ?>"><i class="bi bi-calendar3"></i> Term History</a>
                 <?php endif; ?>
 
                <!-- CANTEEN SIDEBAR CONTROLS -->

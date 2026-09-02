@@ -82,6 +82,70 @@ $categoryBadgeDefault = 'bg-light text-dark';
             </div>
         </div>
 
+
+<<div class="text-center mb-4">
+    <a href="#" id="historyRevealLink" class="text-decoration-none fw-semibold" onclick="toggleClaimHistory(event)">
+        <i class="bi bi-clock-history me-1"></i> View Claim History
+        <i class="bi bi-chevron-down ms-1" id="historyChevron"></i>
+    </a>
+</div>
+
+<div class="card border-0 shadow-sm rounded-3 overflow-hidden bg-white mb-4 <?= $historySearch !== '' ? '' : 'd-none' ?>" id="claimHistoryCard">
+    <div class="card-header bg- border-bottom py-3 d-flex flex-wrap justify-content-between align-items-center gap-2">
+        <h5 class="card-title h6 fw-bold mb-0 text-dark"><i class="bi bi-clock-history me-1"></i> Claim History</h5>
+
+        <?= Html::beginForm(['site/expense-claims'], 'get', ['class' => 'd-flex gap-2', 'style' => 'max-width: 320px; width: 100%;']) ?>
+            <input type="text" name="history_q" class="form-control form-control-sm" placeholder="Search description, category," value="<?= Html::encode($historySearch) ?>">
+            <button type="submit" class="btn btn-sm btn-outline-secondary flex-shrink-0">Search</button>
+            <?php if ($historySearch !== ''): ?>
+                <?= Html::a('<i class="bi bi-x"></i>', ['site/expense-claims'], ['class' => 'btn btn-sm btn-outline-secondary flex-shrink-0', 'title' => 'Clear search']) ?>
+            <?php endif; ?>
+        <?= Html::endForm() ?>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0 small">
+            <thead class="table-light text-secondary text-uppercase border-bottom">
+                <tr>
+                    <th class="ps-3">No</th>
+                    <th class="ps-3">Date Decided</th>
+                    <th>Category</th>
+                    <th>Description</th>
+                    <th class=>Amount</th>
+                    <th>Status</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php $decidedClaims = $historyProvider->getModels(); ?>
+                <?php if (empty($decidedClaims)): ?>
+                    <tr><td colspan="7" class="text-center py-4 text-muted"><?= $historySearch !== '' ? 'No matching claims found.' : 'No decided claims yet.' ?></td></tr>
+                <?php else: ?>
+                    <?php foreach ($decidedClaims as $i => $claim): ?>
+                        <tr>
+                            <td class="ps-3 text-muted fw-semibold"><?= $i + 1 ?></td>
+                            <td class="ps-3 text-muted"><?= $claim->reviewed_at ? date('Y-m-d H:i', strtotime($claim->reviewed_at)) : '—' ?></td>
+                            <td><?= Html::encode($claim->category) ?></td>
+                            <td class="text-secondary"><?= Html::encode($claim->description) ?></td>
+                            <td class="fw-bold">UGX <?= number_format((float) $claim->amount, 0) ?></td>
+                            <td>
+                                <span class="badge <?= $claim->status === 'APPROVED' ? 'text-success' : 'text-danger' ?>">
+                                    <?= Html::encode($claim->status) ?>
+                                </span>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+
+    <?php if ($historyProvider->pagination->pageCount > 1): ?>
+        <div class="p-3 border-top">
+            <?= \yii\widgets\LinkPager::widget(['pagination' => $historyProvider->pagination]) ?>
+        </div>
+    <?php endif; ?>
+</div>
+
         <!-- Claims table -->
         <div class="card border-0 shadow-sm rounded-3 overflow-hidden bg-white mb-4 kora-card-contained">
             <div class="card-header bg-primary text-white py-3">
@@ -97,7 +161,6 @@ $categoryBadgeDefault = 'bg-light text-dark';
                         <tr>
                             <th class="ps-3">No</th>
                             <th>Date Submitted</th>
-                            <th>Requested By</th>
                             <th>Category</th>
                             <th>Description</th>
                             <th class="text-end">Amount</th>
@@ -116,6 +179,7 @@ $categoryBadgeDefault = 'bg-light text-dark';
                         <?php else: ?>
                             <?php foreach ($pendingClaims as $i => $claim): ?>
                                 <?php $badgeClass = $categoryBadgeMap[$claim->category] ?? $categoryBadgeDefault; ?>
+                                <?php $claimIdempotencyKey = bin2hex(random_bytes(16)); ?>
                                 <tr>
                                     <td class="ps-3 text-muted fw-semibold"><?= $i + 1 ?></td>
                                     <td class="text-muted"><?= date('Y-m-d H:i', strtotime($claim->created_at)) ?></td>
@@ -131,19 +195,21 @@ $categoryBadgeDefault = 'bg-light text-dark';
                                     <td class="text-center pe-3">
                                         <div class="d-flex gap-1 justify-content-center">
                                             <?= Html::beginForm(['site/expense-claims'], 'post', ['class' => 'd-inline']) ?>
-                                                <?= Html::hiddenInput('claim_id', $claim->id) ?>
-                                                <?= Html::hiddenInput('decision', 'APPROVE') ?>
-                                                <button type="submit" class="btn btn-sm btn-success fw-bold" title="Approve">
-                                                    <i class="bi bi-check-lg"></i>
-                                                </button>
-                                            <?= Html::endForm() ?>
-                                            <?= Html::beginForm(['site/expense-claims'], 'post', ['class' => 'd-inline']) ?>
-                                                <?= Html::hiddenInput('claim_id', $claim->id) ?>
-                                                <?= Html::hiddenInput('decision', 'REJECT') ?>
-                                                <button type="submit" class="btn btn-sm btn-outline-danger fw-bold" title="Reject" onclick="return confirm('Reject this claim?');">
-                                                    <i class="bi bi-x-lg"></i>
-                                                </button>
-                                            <?= Html::endForm() ?>
+                                                    <?= Html::hiddenInput('claim_id', $claim->id) ?>
+                                                    <?= Html::hiddenInput('decision', 'APPROVE') ?>
+                                                    <?= Html::hiddenInput('idempotency_key', $claimIdempotencyKey) ?>
+                                                    <button type="submit" class="btn btn-sm btn-success fw-bold" title="Approve">
+                                                        <i class="bi bi-check-lg"></i>
+                                                    </button>
+                                                <?= Html::endForm() ?>
+                                                <?= Html::beginForm(['site/expense-claims'], 'post', ['class' => 'd-inline']) ?>
+                                                    <?= Html::hiddenInput('claim_id', $claim->id) ?>
+                                                    <?= Html::hiddenInput('decision', 'REJECT') ?>
+                                                    <?= Html::hiddenInput('idempotency_key', $claimIdempotencyKey) ?>
+                                                    <button type="submit" class="btn btn-sm btn-outline-danger fw-bold" title="Reject" onclick="return confirm('Reject this claim?');">
+                                                        <i class="bi bi-x-lg"></i>
+                                                    </button>
+                                                <?= Html::endForm() ?>
                                         </div>
                                     </td>
                                 </tr>
@@ -152,6 +218,8 @@ $categoryBadgeDefault = 'bg-light text-dark';
                     </tbody>
                 </table>
             </div>
+
+            
 
             <!-- Mobile: stacked claim cards — every field shown, no side-scrolling -->
             <div class="d-md-none">
@@ -377,4 +445,20 @@ document.addEventListener('DOMContentLoaded', function () {
         document.body.appendChild(modalEl);
     });
 });
+
+function toggleClaimHistory(event) {
+    event.preventDefault();
+    const card = document.getElementById('claimHistoryCard');
+    const chevron = document.getElementById('historyChevron');
+    const isHidden = card.classList.contains('d-none');
+
+    card.classList.toggle('d-none');
+    chevron.classList.toggle('bi-chevron-down', !isHidden);
+    chevron.classList.toggle('bi-chevron-up', isHidden);
+
+    if (isHidden) {
+        card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+}
 </script>
+

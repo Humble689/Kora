@@ -50,8 +50,7 @@ $school = $tx->student->school ?? null;
     <table>
         <tr><td>Date</td><td class="right"><?= date('Y-m-d H:i', strtotime($tx->created_at)) ?></td></tr>
         <tr><td>Receipt No.</td><td class="right"><?= Html::encode($tx->external_reference) ?></td></tr>
-        <tr><td>Student</td><td class="right"><?= $tx->student ? Html::encode($tx->student->name) : 'Unknown' ?></td></tr>
-        <?php if ($tx->student && $tx->student->payment_code): ?>
+<tr><td><?= $tx->student ? 'Student' : 'Recorded For' ?></td><td class="right"><?= $tx->student ? Html::encode($tx->student->name) : ($tx->school ? Html::encode($tx->school->name) . ' (' . Html::encode($tx->transaction_type) . ')' : 'Unknown') ?></td></tr>        <?php if ($tx->student && $tx->student->payment_code): ?>
         <tr><td>Payment Code</td><td class="right"><?= Html::encode($tx->student->payment_code) ?></td></tr>
         <?php endif; ?>
         <tr><td>Type</td><td class="right"><?= Html::encode($tx->transaction_type) ?></td></tr>

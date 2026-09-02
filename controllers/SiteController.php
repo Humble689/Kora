@@ -15,6 +15,8 @@ use app\models\Schools;
 use app\models\SignupForm; 
 use app\models\StudentLookup;
 use app\models\Students;
+use app\models\TermRolloverDetails;
+use app\models\TermRollovers;
 use app\models\Transactions;
 use app\models\User;
 use yii\captcha\CaptchaAction;
@@ -701,6 +703,39 @@ $txQuery = Transactions::find()
 ]);
 }
 
+public function actionTermHistory()
+{
+    $identity = Yii::$app->user->identity;
+    if (Yii::$app->user->isGuest || !in_array($identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'], true)) {
+        throw new \yii\web\ForbiddenHttpException();
+    }
+
+    $schoolId = $this->requireWorkingSchoolId();
+   $rollovers = TermRollovers::find()
+    ->where(['school_id' => $schoolId])
+    ->orderBy(['created_at' => SORT_DESC])
+    ->all();
+
+$currentTerm = null;
+foreach ($rollovers as $r) {
+    if ($r->status !== 'REVERSED') {
+        $currentTerm = $r;
+        break;
+    }
+}
+
+$mostRecentActiveId = null;
+foreach ($rollovers as $r) {
+    if ($r->status === 'ACTIVE') { $mostRecentActiveId = $r->id; break; }
+}
+
+    return $this->render('term-history', [
+        'rollovers' => $rollovers,
+        'currentTerm' => $currentTerm,
+        'mostRecentActiveId' => $mostRecentActiveId, 
+    ]);
+}
+
 
 private function buildCollectionVelocitySeries($schoolId, $currentTermId = null)
 {
@@ -1357,7 +1392,7 @@ public function actionDeviceLookup()
             throw new \yii\web\NotFoundHttpException("Statement file generation target matching code failed.");
         }
 
-        $data = $this->renderPartial('_statement_pdf', [
+        $data = $this->renderPartial('_statem10ent_pdf', [
             'student' => $student
         ]);
 
@@ -1811,49 +1846,117 @@ public function actionEditStudent($id)
         return $this->redirect(['site/bursar']);
     } 
 
-     
-    public function actionTermRollover()
-    {
-           $identity = Yii::$app->user->identity;
-
+ public function actionTermRollover()
+{
+    $identity = Yii::$app->user->identity;
     if (Yii::$app->user->isGuest || !in_array($identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'], true)) {
         throw new \yii\web\ForbiddenHttpException();
-        }
+    }
 
-        $userSchoolId = $this->requireWorkingSchoolId();
-        $school = Schools::findOne($userSchoolId);
+    $userSchoolId = $this->requireWorkingSchoolId();
+    $school = Schools::findOne($userSchoolId);
 
-        if (!$school) {
-            throw new \yii\web\NotFoundHttpException("School billing configuration missing.");
-        }
+    if (!$school) {
+        throw new \yii\web\NotFoundHttpException("School billing configuration missing.");
+    }
 
-        //only active, attending student records
-        $students = Students::find()
-            ->where(['school_id' => $userSchoolId, 'status' => 'ACTIVE'])
-            ->all();
+    $termNumber = (int) Yii::$app->request->post('term_number');
+    $year = (int) Yii::$app->request->post('year');
 
-        $dbTransaction = Yii::$app->db->beginTransaction();
-        try {
-            foreach ($students as $st) {
-                //  Tuition accumulates debt while S-Wallet stays untouched
-                $st->tuition_balance = (float)$st->tuition_balance + (float)$school->base_tuition_fees;
-                
-                
-                if (!$st->save(false)) {
-                    throw new \Exception("Rollover script failed on student code: " . $st->payment_code);
-                }
-            }
-
-            $dbTransaction->commit();
-            Yii::$app->session->setFlash('success', "Academic term rollover processed! Billed " . count($students) . " students. Pocket money vaults maintained smoothly.");
-        } catch (\Exception $e) {
-            $dbTransaction->rollBack();
-            Yii::$app->session->setFlash('error', "Rollover aborted: " . $e->getMessage());
-        }
-
+    if (!in_array($termNumber, [1, 2, 3], true)) {
+        Yii::$app->session->setFlash('error', 'Please select a valid term.');
+        return $this->redirect(['site/bursar']);
+    }
+    if ($year < 2020 || $year > 2100) {
+        Yii::$app->session->setFlash('error', 'Please select a valid year.');
         return $this->redirect(['site/bursar']);
     }
 
+    $termLabel = "Term {$termNumber}, {$year}";
+
+    // Prevent accidentally logging the exact same term twice
+    $duplicate = TermRollovers::findOne(['school_id' => $userSchoolId, 'term_label' => $termLabel]);
+    if ($duplicate) {
+        Yii::$app->session->setFlash('error', "{$termLabel} has already been rolled over for this school.");
+        return $this->redirect(['site/bursar']);
+    }
+
+    $students = Students::find()
+        ->where(['school_id' => $userSchoolId, 'status' => 'ACTIVE'])
+        ->all();
+
+    $dbTransaction = Yii::$app->db->beginTransaction();
+    try {
+                $rollover = new TermRollovers();
+            $rollover->school_id = $userSchoolId;
+            $rollover->term_label = $termLabel;
+            $rollover->term_number = $termNumber;
+            $rollover->year = $year;
+            $rollover->base_tuition_fees = (float) $school->base_tuition_fees;
+            $rollover->students_billed = count($students);
+            $rollover->performed_by = $identity->id;
+            $rollover->status = 'ACTIVE';
+            if (!$rollover->save()) {
+                throw new \Exception('Failed to log rollover event.');
+            }
+
+        foreach ($students as $st) {
+            $st->tuition_balance = (float) $st->tuition_balance + (float) $school->base_tuition_fees;
+            if (!$st->save(false)) {
+                throw new \Exception("Rollover script failed on student code: " . $st->payment_code);
+            }
+
+            $detail = new TermRolloverDetails();
+            $detail->term_rollover_id = $rollover->id;
+            $detail->student_id = $st->id;
+            $detail->amount_billed = (float) $school->base_tuition_fees;
+            if (!$detail->save()) {
+                throw new \Exception("Failed to log billing detail for: " . $st->payment_code);
+            }
+        }
+
+        $dbTransaction->commit();
+        Yii::$app->session->setFlash('success', "{$termLabel} started! Billed " . count($students) . " students. Pocket money vaults maintained smoothly.");
+    } catch (\Exception $e) {
+        $dbTransaction->rollBack();
+        Yii::$app->session->setFlash('error', "Rollover aborted: " . $e->getMessage());
+    }
+
+    return $this->redirect(['site/bursar']);
+}
+
+public function actionPrintTermReport($id)
+{
+    $identity = Yii::$app->user->identity;
+    if (Yii::$app->user->isGuest || !in_array($identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN', 'DOS'], true)) {
+        throw new \yii\web\ForbiddenHttpException();
+    }
+
+    $schoolId = $this->requireWorkingSchoolId();
+    $rollover = TermRollovers::findOne(['id' => $id, 'school_id' => $schoolId]);
+
+    if (!$rollover) {
+        throw new \yii\web\NotFoundHttpException('Term record not found.');
+    }
+
+    $hasDetails = !empty($rollover->details);
+    $transactions = [];
+
+    if (!$hasDetails) {
+        $window = $this->getTermWindow($rollover);
+        $transactions = Transactions::find()
+            ->where(['school_id' => $schoolId])
+            ->andWhere(['between', 'created_at', $window['start'], $window['end']])
+            ->orderBy(['created_at' => SORT_ASC])
+            ->all();
+    }
+
+    return $this->renderPartial('term-report-print', [
+        'rollover' => $rollover,
+        'hasDetails' => $hasDetails,
+        'transactions' => $transactions,
+    ]);
+}
 
     
     public function actionTeacherGrading()
@@ -2232,50 +2335,60 @@ public function actionDosReview()
     }  
     
    
-    public function actionPrintReports()
-    {
-        if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['DOS', 'SUPER_ADMIN', 'SCHOOL_ADMIN'])) {
-            return $this->redirect(['site/login']);
-        }
+ public function actionPrintReports()
+{
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['DOS', 'SUPER_ADMIN', 'SCHOOL_ADMIN'])) {
+        return $this->redirect(['site/login']);
+    }
+    $schoolId = $this->requireWorkingSchoolId();
+    $request = Yii::$app->request;
+    $selectedClass = $request->get('class_level', 'Senior 1');
+    $selectedTerm = $request->get('term', 'TERM_1');
 
-        $schoolId = $this->requireWorkingSchoolId();
-        $request = Yii::$app->request;
-        
-        $selectedClass = $request->get('class_level', 'Senior 1');
-        $selectedTerm = $request->get('term', 'TERM_1'); 
+    $availableYears = Yii::$app->db->createCommand(
+        'SELECT DISTINCT am.academic_year
+         FROM academic_marks am
+         INNER JOIN students s ON s.id = am.student_id
+         WHERE s.school_id = :sid
+         ORDER BY am.academic_year DESC'
+    )->bindValue(':sid', $schoolId)->queryColumn();
 
-        $students = \app\models\Students::find()
-            ->where(['school_id' => $schoolId, 'class_level' => $selectedClass, 'status' => 'ACTIVE'])
-            ->orderBy(['name' => SORT_ASC])
-            ->all();
-
-        return $this->render('print_reports', [
-            'students' => $students,
-            'selectedClass' => $selectedClass,
-            'selectedTerm' => $selectedTerm, 
-        ]);
+    if (empty($availableYears)) {
+        $availableYears = [(int) date('Y')]; // fallback so the dropdown is never empty on a brand-new school
     }
 
+    $selectedYear = (int) $request->get('year', $availableYears[0]);
 
-public function actionViewReportCard($id, $term = 'TERM_1')
+    $students = \app\models\Students::find()
+        ->where(['school_id' => $schoolId, 'class_level' => $selectedClass, 'status' => 'ACTIVE'])
+        ->orderBy(['name' => SORT_ASC])
+        ->all();
+
+    return $this->render('print_reports', [
+        'students' => $students,
+        'selectedClass' => $selectedClass,
+        'selectedTerm' => $selectedTerm,
+        'selectedYear' => $selectedYear,
+        'availableYears' => $availableYears,
+    ]);
+}
+
+
+public function actionViewReportCard($id, $term = 'TERM_1', $year = null)
 {
     if (Yii::$app->user->isGuest) {
         return $this->redirect(['site/login']);
     }
-
     $schoolId = $this->requireWorkingSchoolId();
-    $academicYear = (int)date('Y');
-
+    $academicYear = $year !== null ? (int) $year : (int) date('Y');
     $student = Students::findOne(['id' => $id, 'school_id' => $schoolId]);
     if (!$student) {
         throw new \yii\web\NotFoundHttpException("Target student record profile file not found.");
     }
-
     $gradesList = Yii::$app->db->createCommand(
         'SELECT * FROM academic_marks 
          WHERE student_id = :sid AND term = :trm AND academic_year = :yr'
     )->bindValues([':sid' => $id, ':trm' => $term, ':yr' => $academicYear])->queryAll();
-
     $classPosition = null;
     $classSize = null;
     if (strpos($student->class_level, 'Primary') !== false) {
@@ -2283,7 +2396,6 @@ public function actionViewReportCard($id, $term = 'TERM_1')
             $schoolId, $student->class_level, $term, $academicYear, (int)$student->id
         );
     }
-
     return $this->render('view_report_card', [
         'student' => $student,
         'gradesList' => $gradesList,
@@ -2383,6 +2495,7 @@ private function computePrimaryClassRanking(int $schoolId, string $classLevel, s
         }
         throw new \yii\web\ForbiddenHttpException();
     }
+    
 
 
     public function actionSchoolAdmin()
@@ -2428,6 +2541,8 @@ private function computePrimaryClassRanking(int $schoolId, string $classLevel, s
             'recentTransactions' => $recentTransactions,
         ]);
     }
+
+
 
 public function actionBulkModerateMarks()
 {
@@ -2559,14 +2674,14 @@ public function actionBulkModerateMarks()
 }
 
 
-public function actionBatchPrintReports($class_level, $term = 'TERM_1')
+public function actionBatchPrintReports($class_level, $term = 'TERM_1', $year = null)
 {
     if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['DOS', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
         return $this->redirect(['site/login']);
     }
 
     $schoolId = $this->requireWorkingSchoolId();
-    $academicYear = (int)date('Y');
+    $academicYear = $year !== null ? (int) $year : (int) date('Y');
 
     $students = \app\models\Students::find()
         ->where(['school_id' => $schoolId, 'class_level' => $class_level, 'status' => 'ACTIVE'])
@@ -2605,10 +2720,10 @@ public function actionBatchPrintReports($class_level, $term = 'TERM_1')
     ]);
 }
 
-//ranking
+
 private function computePrimaryClassRankingMap(int $schoolId, string $classLevel, string $term, int $academicYear): array
 {
-    $primaryCoreSubjects = ['English', 'Mathematics', 'Science', 'Social Studies']; // ADJUST
+    $primaryCoreSubjects = ['English', 'Mathematics', 'Science', 'Social Studies']; 
 
     $subjectParams = [];
     $subjectPlaceholders = [];
@@ -2647,43 +2762,43 @@ private function computePrimaryClassRankingMap(int $schoolId, string $classLevel
 
     return [$positionMap, $classSize];
 }
-    public function actionExportClassMarks($class_level, $term = 'TERM_1')
-    {
-        if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'DOS', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
-            throw new \yii\web\ForbiddenHttpException();
-        }
 
-        $schoolId = $this->requireWorkingSchoolId();
-        $academicYear = (int)date('Y');
 
-        $records = Yii::$app->db->createCommand(
-            "SELECT s.name, s.payment_code, m.subject_name, m.bot_mark, m.mot_mark, m.eot_mark, m.teacher_comment
-             FROM academic_marks m
-             JOIN students s ON m.student_id = s.id
-             WHERE m.school_id = :sid AND m.class_level = :cls AND m.term = :trm AND m.academic_year = :yr
-             ORDER BY s.name ASC, m.subject_name ASC"
-        )->bindValues([':sid' => $schoolId, ':cls' => $class_level, ':trm' => $term, ':yr' => $academicYear])->queryAll();
-
-        $fileName = str_replace(' ', '_', $class_level) . "_{$term}_Marks_Ledger.csv";
-        
-        Yii::$app->response->getHeaders()
-            ->set('Content-Type', 'text/csv; charset=utf-8')
-            ->set('Content-Disposition', "attachment; filename={$fileName}");
-
-        $outputBuffer = fopen('php://output', 'w');
-        fputcsv($outputBuffer, ['Student Full Name', 'Payment Code', 'Subject Course', 'BOT (20%)', 'MOT (30%)', 'EOT (50%)', 'Teacher Comment']);
-
-        foreach ($records as $row) {
-            fputcsv($outputBuffer, [
-                $row['name'], $row['payment_code'], $row['subject_name'], 
-                $row['bot_mark'], $row['mot_mark'], $row['eot_mark'], $row['teacher_comment']
-            ]);
-        }
-        fclose($outputBuffer);
-        exit();
+  public function actionExportClassMarks($class_level, $term = 'TERM_1', $year = null)
+{
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['BURSAR', 'DOS', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
+        throw new \yii\web\ForbiddenHttpException();
     }
 
+    $schoolId = $this->requireWorkingSchoolId();
+    $academicYear = $year !== null ? (int) $year : (int) date('Y');
 
+    $records = Yii::$app->db->createCommand(
+        "SELECT s.name, s.payment_code, m.subject_name, m.bot_mark, m.mot_mark, m.eot_mark, m.teacher_comment
+         FROM academic_marks m
+         JOIN students s ON m.student_id = s.id
+         WHERE m.school_id = :sid AND m.class_level = :cls AND m.term = :trm AND m.academic_year = :yr
+         ORDER BY s.name ASC, m.subject_name ASC"
+    )->bindValues([':sid' => $schoolId, ':cls' => $class_level, ':trm' => $term, ':yr' => $academicYear])->queryAll();
+
+    $fileName = str_replace(' ', '_', $class_level) . "_{$term}_{$academicYear}_Marks_Ledger.csv";
+
+    Yii::$app->response->getHeaders()
+        ->set('Content-Type', 'text/csv; charset=utf-8')
+        ->set('Content-Disposition', "attachment; filename={$fileName}");
+
+    $outputBuffer = fopen('php://output', 'w');
+    fputcsv($outputBuffer, ['Student Full Name', 'Payment Code', 'Subject Course', 'BOT (20%)', 'MOT (30%)', 'EOT (50%)', 'Teacher Comment']);
+
+    foreach ($records as $row) {
+        fputcsv($outputBuffer, [
+            $row['name'], $row['payment_code'], $row['subject_name'],
+            $row['bot_mark'], $row['mot_mark'], $row['eot_mark'], $row['teacher_comment']
+        ]);
+    }
+    fclose($outputBuffer);
+    exit();
+}
  
 public function actionSettings()
 {
@@ -2828,8 +2943,8 @@ public function actionVoidTransaction()
         return $this->redirect(['site/bursar']);
     }
 
-    $tx = Transactions::findOne($id);
-    if (!$tx || !$tx->student || (int) $tx->student->school_id !== (int) $this->requireWorkingSchoolId()) {
+   $tx = Transactions::findOne($id);
+    if (!$tx || (int) $tx->school_id !== (int) $this->requireWorkingSchoolId()) {
         Yii::$app->session->setFlash('error', 'Transaction not found.');
         return $this->redirect(['site/bursar']);
     }
@@ -2847,10 +2962,12 @@ public function actionVoidTransaction()
 
     $dbTransaction = Yii::$app->db->beginTransaction();
     try {
-        if ($tx->transaction_type === 'TUITION') {
+      if ($tx->transaction_type === 'TUITION') {
             $tx->student->tuition_balance += $tx->amount;
+            $tx->student->save(false);
         } elseif ($tx->transaction_type === 'POCKET_MONEY') {
             $tx->student->swallet_balance -= $tx->amount;
+            $tx->student->save(false);
         }
         $tx->student->save(false);
 
@@ -3008,10 +3125,9 @@ public function actionForcePosSync()
 public function actionPrintReceipt($id)
 {
     $tx = Transactions::findOne($id);
-    if (!$tx || !$tx->student || (int) $tx->student->school_id !== (int) $this->requireWorkingSchoolId()) {
+    if (!$tx || (int) $tx->school_id !== (int) $this->requireWorkingSchoolId()) {
         throw new \yii\web\NotFoundHttpException('Transaction not found.');
     }
-
     return $this->renderPartial('receipt-print', ['tx' => $tx]);
 }
 
@@ -3023,12 +3139,52 @@ public function actionExpenseClaims()
     }
 
     $schoolId = $this->requireWorkingSchoolId();
-    $pendingClaims = ExpenseClaims::find()->where(['school_id' => $schoolId, 'status' => 'PENDING'])->all();
+    $pendingClaims = ExpenseClaims::find()
+        ->where(['school_id' => $schoolId, 'status' => 'PENDING'])
+        ->orderBy(['created_at' => SORT_DESC])
+        ->all();
+
+    $historySearch = trim((string) Yii::$app->request->get('history_q', ''));
+
+    $historyQuery = ExpenseClaims::find()
+        ->alias('ec')
+        ->joinWith(['requestedBy'])
+        ->where(['ec.school_id' => $schoolId])
+        ->andWhere(['!=', 'ec.status', 'PENDING']);
+
+    if ($historySearch !== '') {
+        $like = '%' . strtr($historySearch, ['%' => '\%', '_' => '\_']) . '%';
+        $historyQuery->andWhere(['or',
+            ['ilike', 'ec.description', $like, false],
+            ['ilike', 'ec.category', $like, false],
+            ['ilike', 'system_admins.username', $like, false],
+        ]);
+    }
+
+    $historyProvider = new \yii\data\ActiveDataProvider([
+        'query' => $historyQuery,
+        'pagination' => ['pageSize' => 15, 'pageParam' => 'history_page'],
+        'sort' => [
+            'defaultOrder' => ['reviewed_at' => SORT_DESC],
+            'attributes' => ['reviewed_at', 'amount'],
+        ],
+    ]);
 
     if (Yii::$app->request->isPost) {
         $claimId = Yii::$app->request->post('claim_id');
         $decision = Yii::$app->request->post('decision');
+        $idempotencyKey = trim((string) Yii::$app->request->post('idempotency_key'));
         $claim = ExpenseClaims::findOne(['id' => $claimId, 'school_id' => $schoolId]);
+
+        if ($claim && $claim->status !== 'PENDING') {
+            Yii::$app->session->setFlash('error', 'This claim has already been ' . strtolower($claim->status) . '.');
+            return $this->redirect(['site/expense-claims']);
+        }
+
+        if ($claim && !empty($idempotencyKey) && Transactions::findOne(['idempotency_key' => $idempotencyKey])) {
+            Yii::$app->session->setFlash('success', 'Claim already processed.');
+            return $this->redirect(['site/expense-claims']);
+        }
 
         if ($claim) {
             $dbTransaction = Yii::$app->db->beginTransaction();
@@ -3045,9 +3201,11 @@ public function actionExpenseClaims()
                     $tx->transaction_type = 'EXPENSE';
                     $tx->payment_channel = 'PETTY_CASH';
                     $tx->amount = $claim->amount;
-                    $tx->external_reference = 'EXPENSE-' . $claim->id . ($claim->reference_number ? ' / ' . $claim->reference_number : '');                    $tx->status = 'SUCCESS';
-                    $tx->bank_settled = true; // cash paid out directly, nothing to settle
+                    $tx->external_reference = 'EXPENSE-' . $claim->id . ($claim->reference_number ? ' / ' . $claim->reference_number : '');
+                    $tx->status = 'SUCCESS';
+                    $tx->bank_settled = true;
                     $tx->created_by = Yii::$app->user->id;
+                    $tx->idempotency_key = !empty($idempotencyKey) ? $idempotencyKey : null;
                     $tx->save(false);
                 }
 
@@ -3061,7 +3219,11 @@ public function actionExpenseClaims()
         return $this->redirect(['site/expense-claims']);
     }
 
-    return $this->render('expense-claims', ['pendingClaims' => $pendingClaims]);
+    return $this->render('expense-claims', [
+        'pendingClaims' => $pendingClaims,
+        'historyProvider' => $historyProvider,
+        'historySearch' => $historySearch,
+    ]);
 }
 
 
@@ -3287,8 +3449,180 @@ public function actionRemoveStaff($id)
 
     return ['success' => true, 'message' => 'Staff member removed and access revoked.'];
 }
+public function actionReverseTermRollover($id)
+{
+    $identity = Yii::$app->user->identity;
+    if (Yii::$app->user->isGuest || !in_array($identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'], true)) {
+        throw new \yii\web\ForbiddenHttpException();
+    }
 
-// Called from the existing parent-facing student dashboard, by the parent themselves
+    $schoolId = $this->requireWorkingSchoolId();
+    $rollover = TermRollovers::findOne(['id' => $id, 'school_id' => $schoolId]);
+
+    if (!$rollover || $rollover->status !== 'ACTIVE') {
+        Yii::$app->session->setFlash('error', 'This rollover cannot be reversed.');
+        return $this->redirect(['site/term-history']);
+    }
+
+    // Safety rule: only the MOST RECENT rollover for this school can ever be reversed.
+    $newerExists = TermRollovers::find()
+        ->where(['school_id' => $schoolId])
+        ->andWhere(['>', 'created_at', $rollover->created_at])
+        ->exists();
+
+    if ($newerExists) {
+        Yii::$app->session->setFlash('error', 'Only the most recent term rollover can be reversed. A newer term has already started.');
+        return $this->redirect(['site/term-history']);
+    }
+
+    $dbTransaction = Yii::$app->db->beginTransaction();
+    try {
+        foreach ($rollover->details as $detail) {
+            $student = Students::findOne($detail->student_id);
+            if ($student) {
+                $student->tuition_balance = (float) $student->tuition_balance - (float) $detail->amount_billed;
+                $student->save(false);
+            }
+        }
+
+        $rollover->status = 'REVERSED';
+        $rollover->reversed_by = $identity->id;
+        $rollover->reversed_at = date('Y-m-d H:i:s');
+        $rollover->save(false);
+
+        $dbTransaction->commit();
+        Yii::$app->session->setFlash('success', "{$rollover->term_label} has been reversed.");
+    } catch (\Exception $e) {
+        $dbTransaction->rollBack();
+        Yii::$app->session->setFlash('error', 'Reversal failed: ' . $e->getMessage());
+    }
+
+    return $this->redirect(['site/term-history']);
+}
+private function getTermWindow(TermRollovers $rollover): array
+{
+    $nextRollover = TermRollovers::find()
+        ->where(['school_id' => $rollover->school_id])
+        ->andWhere(['>', 'created_at', $rollover->created_at])
+        ->orderBy(['created_at' => SORT_ASC])
+        ->one();
+
+    return [
+        'start' => $rollover->created_at,
+        'end' => $nextRollover ? $nextRollover->created_at : date('Y-m-d H:i:s'),
+    ];
+}
+
+public function actionTermTransactions($id)
+{
+    $identity = Yii::$app->user->identity;
+    if (Yii::$app->user->isGuest || !in_array($identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN', 'DOS'], true)) {
+        throw new \yii\web\ForbiddenHttpException();
+    }
+
+    $schoolId = $this->requireWorkingSchoolId();
+    $rollover = TermRollovers::findOne(['id' => $id, 'school_id' => $schoolId]);
+
+    if (!$rollover) {
+        throw new \yii\web\NotFoundHttpException('Term record not found.');
+    }
+
+    $window = $this->getTermWindow($rollover);
+
+    $query = Transactions::find()
+        ->alias('t')
+        ->joinWith(['student'])
+        ->where(['t.school_id' => $schoolId])
+        ->andWhere(['between', 't.created_at', $window['start'], $window['end']]);
+
+    $searchQuery = trim((string) Yii::$app->request->get('q', ''));
+    if ($searchQuery !== '') {
+        $like = '%' . strtr($searchQuery, ['%' => '\%', '_' => '\_']) . '%';
+        $query->andWhere(['or',
+            ['ilike', 'students.name', $like, false],
+            ['ilike', 't.transaction_type', $like, false],
+            ['ilike', 't.external_reference', $like, false],
+        ]);
+    }
+
+  $dataProvider = new \yii\data\ActiveDataProvider([
+    'query' => $query,
+    'pagination' => ['pageSize' => 25],
+    'sort' => [
+        'attributes' => [
+            'created_at' => [
+                'asc' => ['t.created_at' => SORT_ASC],
+                'desc' => ['t.created_at' => SORT_DESC],
+                'default' => SORT_DESC,
+            ],
+            'amount' => [
+                'asc' => ['t.amount' => SORT_ASC],
+                'desc' => ['t.amount' => SORT_DESC],
+            ],
+        ],
+        'defaultOrder' => ['created_at' => SORT_DESC],
+    ],
+]);
+
+    return $this->render('term-transactions', [
+        'dataProvider' => $dataProvider,
+        'rollover' => $rollover,
+        'window' => $window,
+        'searchQuery' => $searchQuery,
+    ]);
+}
+
+public function actionTermBalances($id)
+{
+    $identity = Yii::$app->user->identity;
+    if (Yii::$app->user->isGuest || !in_array($identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN', 'DOS'], true)) {
+        throw new \yii\web\ForbiddenHttpException();
+    }
+
+    $schoolId = $this->requireWorkingSchoolId();
+    $rollover = TermRollovers::findOne(['id' => $id, 'school_id' => $schoolId]);
+
+    if (!$rollover) {
+        throw new \yii\web\NotFoundHttpException('Term record not found.');
+    }
+
+    $window = $this->getTermWindow($rollover);
+    $asOf = $window['end']; // reconstruct balance as of this term's end
+
+    $students = Students::find()->where(['school_id' => $schoolId])->all();
+    $snapshot = [];
+
+    foreach ($students as $student) {
+        $currentBalance = (float) $student->tuition_balance;
+
+        // Undo billing from rollovers that happened AFTER this term ended
+        $laterBilling = (float) TermRolloverDetails::find()
+            ->alias('d')
+            ->innerJoin('term_rollovers r', 'r.id = d.term_rollover_id')
+            ->where(['d.student_id' => $student->id])
+            ->andWhere(['>', 'r.created_at', $asOf])
+            ->sum('d.amount_billed');
+
+        // Undo tuition payments made AFTER this term ended
+        $laterPayments = (float) Transactions::find()
+            ->where(['student_id' => $student->id, 'transaction_type' => 'TUITION', 'status' => 'SUCCESS'])
+            ->andWhere(['>', 'created_at', $asOf])
+            ->sum('amount');
+
+        $reconstructedBalance = $currentBalance - $laterBilling + $laterPayments;
+
+        $snapshot[] = [
+            'student' => $student,
+            'balance' => $reconstructedBalance,
+        ];
+    }
+
+    return $this->render('term-balances', [
+        'rollover' => $rollover,
+        'asOf' => $asOf,
+        'snapshot' => $snapshot,
+    ]);
+}
 public function actionSponsorToggle($code)
 {
     Yii::$app->response->format = Response::FORMAT_JSON;
@@ -3320,7 +3654,6 @@ public function actionSponsorToggle($code)
     ];
 }
 
-// Public page — no login required, minimal info only
 public function actionSponsor($code)
 {
     $student = Students::findOne(['sponsor_code' => $code, 'sponsorship_enabled' => true]);
