@@ -14,12 +14,6 @@ $this->title = 'KORA Enroll New Student';
 <div class="site-register-student bg-light py-4 min-vh-100">
     <div class="container" style="max-width: 550px;">
 
-        <?php if (Yii::$app->session->hasFlash('error')): ?>
-            <div class="alert alert-danger border-0 shadow-sm mb-3">
-                <?= Yii::$app->session->getFlash('error') ?>
-            </div>
-        <?php endif; ?>
-
         <div class="card shadow-sm border-0 rounded-4 p-4 bg-white">
             <div class="text-center mb-4 border-bottom pb-3">
                 <h1 class="h3 fw-bold text-dark mb-1">Student Enrollment</h1>

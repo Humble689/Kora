@@ -20,20 +20,6 @@ if ($workingId) {
 <div class="site-school-registry bg-light py-4 min-vh-100">
     <div class="container-fluid px-3 px-md-4" style="max-width: 90rem;">
 
-        <?php if (Yii::$app->session->hasFlash('success')): ?>
-            <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm rounded-3 mb-4" role="alert">
-                <i class="bi bi-check-circle-fill me-2"></i><?= Yii::$app->session->getFlash('success') ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        <?php endif; ?>
-
-        <?php if (Yii::$app->session->hasFlash('error')): ?>
-            <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm rounded-3 mb-4" role="alert">
-                <i class="bi bi-exclamation-triangle-fill me-2"></i><?= Yii::$app->session->getFlash('error') ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        <?php endif; ?>
-
         <?php if ($workingSchool): ?>
             <div class="alert alert-info border-0 shadow-sm rounded-3 mb-3 d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-2">
                 <div>

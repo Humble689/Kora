@@ -15,20 +15,6 @@ $isTeacher = ($user->role ?? null) === 'TEACHER';
 <div class="site-settings bg-light py-4 min-vh-100">
     <div class="container-fluid" style="max-width: 60rem;">
 
-        <?php if (Yii::$app->session->hasFlash('success')): ?>
-            <div class="alert alert-success alert-dismissible fade show border-0 shadow-sm rounded-3 mb-4" role="alert">
-                <i class="bi bi-check-circle-fill me-2"></i><?= Yii::$app->session->getFlash('success') ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        <?php endif; ?>
-
-        <?php if (Yii::$app->session->hasFlash('error')): ?>
-            <div class="alert alert-danger alert-dismissible fade show border-0 shadow-sm rounded-3 mb-4" role="alert">
-                <i class="bi bi-exclamation-triangle-fill me-2"></i><?= Yii::$app->session->getFlash('error') ?>
-                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
-            </div>
-        <?php endif; ?>
-
         <div class="mb-4">
             <h1 class="h3 fw-bold text-dark mb-0"><i class="bi bi-gear-fill me-2"></i>Account Settings</h1>
             <p class="text-muted small mb-0">Manage your profile picture and username.</p>
