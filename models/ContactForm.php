@@ -23,9 +23,7 @@ class ContactForm extends Model
     public function rules(): array
     {
         return [
-            // name, email, subject and body are required
             [['name', 'email', 'subject', 'body'], 'required'],
-            // email has to be a valid email address
             ['email', 'email'],
             ['verifyCode', 'captcha'],
         ];
