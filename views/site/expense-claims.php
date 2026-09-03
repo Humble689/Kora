@@ -8,7 +8,7 @@ declare(strict_types=1);
 use yii\bootstrap5\Html;
 use yii\helpers\Url;
 
-$this->title = 'KORA ERP — Expense Claims';
+$this->title = 'KORA ERP - Expense Claims';
 
 $categoryBadgeMap = [
     'FUEL'         => 'bg-warning-subtle text-warning-emphasis',
@@ -109,7 +109,7 @@ $categoryBadgeDefault = 'bg-light text-dark';
                     <?php foreach ($decidedClaims as $i => $claim): ?>
                         <tr>
                             <td class="ps-3 text-muted fw-semibold"><?= $i + 1 ?></td>
-                            <td class="ps-3 text-muted"><?= $claim->reviewed_at ? date('Y-m-d H:i', strtotime($claim->reviewed_at)) : '—' ?></td>
+                            <td class="ps-3 text-muted"><?= $claim->reviewed_at ? date('Y-m-d H:i', strtotime($claim->reviewed_at)) : '-' ?></td>
                             <td><?= Html::encode($claim->category) ?></td>
                             <td class="text-secondary"><?= Html::encode($claim->description) ?></td>
                             <td class="fw-bold">UGX <?= number_format((float) $claim->amount, 0) ?></td>
@@ -177,7 +177,7 @@ $categoryBadgeDefault = 'bg-light text-dark';
                                     </td>
                                     <td class="text-secondary"><?= Html::encode($claim->description) ?></td>
                                     <td class="fw-bold text-dark text-end">UGX <?= number_format((float)$claim->amount, 0) ?></td>
-                                    <td class="text-muted font-monospace small"><?= $claim->reference_number ? Html::encode($claim->reference_number) : '—' ?></td>
+                                    <td class="text-muted font-monospace small"><?= $claim->reference_number ? Html::encode($claim->reference_number) : '-' ?></td>
                                     <td class="text-center pe-3">
                                         <div class="d-flex gap-1 justify-content-center">
                                             <?= Html::beginForm(['site/expense-claims'], 'post', ['class' => 'd-inline']) ?>
@@ -207,7 +207,7 @@ $categoryBadgeDefault = 'bg-light text-dark';
 
             
 
-            <!-- Mobile: stacked claim cards — every field shown, no side-scrolling -->
+            <!-- Mobile: stacked claim cards - every field shown, no side-scrolling -->
             <div class="d-md-none">
                 <?php if (empty($pendingClaims)): ?>
                     <div class="text-center py-5 text-muted">
@@ -233,7 +233,7 @@ $categoryBadgeDefault = 'bg-light text-dark';
                             <div class="small text-secondary mb-2"><?= Html::encode($claim->description) ?></div>
 
                             <div class="small text-muted mb-3">
-                                Ref: <span class="font-monospace"><?= $claim->reference_number ? Html::encode($claim->reference_number) : '—' ?></span>
+                                Ref: <span class="font-monospace"><?= $claim->reference_number ? Html::encode($claim->reference_number) : '-' ?></span>
                             </div>
 
                             <div class="d-flex gap-2">

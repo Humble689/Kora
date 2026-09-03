@@ -180,7 +180,7 @@ $allTimeTotal = (float) \app\models\Transactions::find()
                         [
                             'label' => 'Terminal',
                             'value' => function ($model) {
-                                return $model->device?->label ?? $model->device?->device_uid ?? '—';
+                                return $model->device?->label ?? $model->device?->device_uid ?? '-';
                             },
                             'headerOptions' => ['class' => 'text-uppercase small fw-bold', 'style' => 'font-size: 11px; letter-spacing: 0.04em; color: var(--theme-muted); border: none;'],
                             'contentOptions' => ['class' => 'small text-muted'],
@@ -218,7 +218,7 @@ $allTimeTotal = (float) \app\models\Transactions::find()
                         $schoolName = $model->student?->school?->name ?? null;
                         $studentName = $model->student?->name ?? 'Unknown';
                         $classLevel = $model->student?->class_level ?? '';
-                        $terminal = $model->device?->label ?? $model->device?->device_uid ?? '—';
+                        $terminal = $model->device?->label ?? $model->device?->device_uid ?? '-';
                         $isSuccess = $model->status === 'SUCCESS';
                         $statusIcon = $isSuccess ? 'bi-check-circle-fill' : 'bi-x-circle-fill';
                         $statusBg = $isSuccess ? '#dcfce7' : '#fee2e2';

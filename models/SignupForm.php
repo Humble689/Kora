@@ -21,7 +21,7 @@ class SignupForm extends Model
     /** @var array existing pos_devices.id to assign this CANTEEN staff member to */
     public $pos_device_ids = [];
 
-    /** @var string|null optional — type a label here to register a brand-new device on the spot */
+    /** @var string|null optional - type a label here to register a brand-new device on the spot */
     public $new_device_label;
 
     /** @var string|null set by the controller before validate()/signup() run */

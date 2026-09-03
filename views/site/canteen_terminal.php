@@ -12,7 +12,7 @@ $this->title = 'KORA Canteen Counter Terminal';
 <div class="d-flex justify-content-between align-items-center mb-4 border-bottom pb-3 border-secondary-subtle">
     
         <?php
-        $deviceLabel = 'No device assigned — contact your administrator';
+        $deviceLabel = 'No device assigned - contact your administrator';
         $deviceOk = false;
 
         if ($assignedDevice) {

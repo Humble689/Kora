@@ -76,7 +76,7 @@ use yii\helpers\Url;
                                 ) ?>
                             </div>
 
-                            <!-- Logo / Brand (desktop only — the block above already covers mobile) -->
+                            <!-- Logo / Brand (desktop only - the block above already covers mobile) -->
                             <div class="d-none d-lg-flex align-items-center mb-4 pb-1">
                                 <?= Html::img(
                                     Yii::getAlias('@web/images/logo.jpg'),

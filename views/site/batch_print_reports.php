@@ -13,7 +13,7 @@ use yii\helpers\Html;
 $classPositionMap = $classPositionMap ?? [];
 $classSize = $classSize ?? null;
 
-// Same grading engine as the single report card view (view-report-card.php) —
+// Same grading engine as the single report card view (view-report-card.php) -
 // kept in sync so batch-printed cards and individually-viewed cards never
 // disagree on a grade or division.
 function getBatchUnebGrade($bot, $mot, $eot, $hasBot, $hasMot, $hasEot) {
@@ -45,7 +45,7 @@ $subsidiarySubjects = ['General Paper', 'ICT', 'Sub-Math'];
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Kora Continuous Spooler Run — <?= Html::encode($classLevel) ?></title>
+    <title>Kora Continuous Spooler Run - <?= Html::encode($classLevel) ?></title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css">
     <style>
@@ -211,7 +211,7 @@ foreach ($students as $student):
         <div class="text-center border-bottom border-4 border-dark pb-2 mb-3">
             <h2 class="fw-bold text-dark mb-0 fs-3 text-uppercase"><?= $student->school ? Html::encode($student->school->name) : 'KORA EDUCATION CENTRE' ?></h2>
             <h4 class="fw-semibold text-secondary small fs-6 text-uppercase tracking-wider mb-1">Official Continuous Terminal Report Card</h4>
-            <div class="badge bg-dark px-2.5 py-1 font-monospace text-xs"><?= Html::encode($term) ?> — YEAR <?= $year ?></div>
+            <div class="badge bg-dark px-2.5 py-1 font-monospace text-xs"><?= Html::encode($term) ?> - YEAR <?= $year ?></div>
         </div>
 
         <!-- Student Biodata Block Grid -->

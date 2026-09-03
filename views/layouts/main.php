@@ -292,7 +292,7 @@ $currentRoute = Yii::$app->controller->id . '/' . Yii::$app->controller->action-
             }
         }
 
-        /* Hamburger is hidden while the sidebar is open — the close (X)
+        /* Hamburger is hidden while the sidebar is open - the close (X)
            button inside the sidebar and the backdrop both close it instead,
            so the hamburger never sits stacked on top of the open panel. */
         .sidebar-toggle-btn.is-hidden {

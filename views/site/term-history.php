@@ -52,7 +52,7 @@ $this->title = 'Term History';
             $bannerEyebrow = match ($currentTerm->status) {
                 'ACTIVE' => 'You Are Currently In',
                 'HISTORICAL' => 'Most Recent Term On Record',
-                default => 'Last Term Was Reversed — No Active Term',
+                default => 'Last Term Was Reversed - No Active Term',
             };
         ?>
             <div class="current-term-banner <?= $bannerClass ?>">
@@ -104,7 +104,7 @@ $this->title = 'Term History';
                         <div class="d-flex align-items-center gap-2">
                             <span class="term-badge <?= $badgeClass ?>"><?= $badgeLabel ?></span>
                             <?= Html::a('<i class="bi bi-printer"></i>', ['site/print-term-report', 'id' => $r->id], ['class' => 'btn btn-sm btn-outline-secondary', 'target' => '_blank', 'title' => 'Print report']) ?>
-                            <?php if ($r->id === $mostRecentActiveId): ?>
+                            <?php if ($r->status === 'ACTIVE' && (int) $r->id === $mostRecentActiveId): ?>
                                 <?= Html::beginForm(['site/reverse-term-rollover', 'id' => $r->id], 'post', ['class' => 'm-0', 'onsubmit' => "return confirm('Reverse " . Html::encode(addslashes($r->term_label)) . "? This will subtract the billed amount from every affected student\\'s tuition balance.');"]) ?>
                                     <button type="submit" class="btn btn-sm btn-outline-danger" title="Reverse this term">
                                         <i class="bi bi-arrow-counterclockwise"></i>

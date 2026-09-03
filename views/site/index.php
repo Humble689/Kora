@@ -327,7 +327,7 @@ $this->registerJsFile('@web/js/custom.js', ['depends' => [\yii\web\JqueryAsset::
             <div class="col-lg-4">
                 <div class="widget">
                     <h3>About</h3>
-                    <p>Kora helps parents pay tuition, manage pocket money wallets, and receive sponsorship for their children's canteen spending — all from one secure portal.</p>
+                    <p>Kora helps parents pay tuition, manage pocket money wallets, and receive sponsorship for their children's canteen spending - all from one secure portal.</p>
                 </div>
                 <div class="widget">
                     <address>Kora School Wallet Platform</address>

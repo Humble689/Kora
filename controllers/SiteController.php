@@ -405,7 +405,7 @@ public function actionRequestPasswordReset()
 
         $user = User::findOne(['email' => trim($model->email)]);
 
-        // Same message either way — never reveal whether the email exists
+        // Same message either way - never reveal whether the email exists
         Yii::$app->session->setFlash('success', 'If an account exists for that email, a reset link has been sent.');
 
         if ($user) {
@@ -575,11 +575,30 @@ public function actionResetPassword(string $token)
 
     $userSchoolId = $this->requireWorkingSchoolId();
     $request = Yii::$app->request;
+    $selectedTermLabel = Yii::$app->session->get('working_term_label_' . $userSchoolId);
+    $selectedTermRollover = $selectedTermLabel
+        ? TermRollovers::findOne(['school_id' => $userSchoolId, 'term_label' => $selectedTermLabel])
+        : TermRollovers::find()
+            ->where(['school_id' => $userSchoolId, 'status' => 'ACTIVE'])
+            ->orderBy(['created_at' => SORT_DESC, 'id' => SORT_DESC])
+            ->one();
+    $termWindow = $selectedTermRollover ? $this->getTermWindow($selectedTermRollover) : null;
+
+    $termScope = static function ($query, ?array $window, string $column = 'created_at') {
+        if ($window) {
+            $query->andWhere(['between', $column, $window['start'], $window['end']]);
+        } else {
+            $query->andWhere('1 = 0');
+        }
+        return $query;
+    };
 
 
     $stats = [
-        'total_tuition'     => (float) Transactions::find()->joinWith('student')->where(['transaction_type' => 'TUITION', 'transactions.status' => 'SUCCESS', 'students.school_id' => $userSchoolId])->sum('amount'),
-        'total_outstanding' => (float) Students::find()->where(['school_id' => $userSchoolId])->sum('tuition_balance'),
+        'total_tuition'     => (float) $termScope(Transactions::find()->joinWith('student')->where(['transaction_type' => 'TUITION', 'transactions.status' => 'SUCCESS', 'students.school_id' => $userSchoolId]), $termWindow, 'transactions.created_at')->sum('amount'),
+        'total_outstanding' => $selectedTermRollover
+            ? $this->calculateTermOutstanding($selectedTermRollover, $userSchoolId)
+            : 0.0,
         'total_swallet'     => (float) Students::find()->where(['school_id' => $userSchoolId])->sum('swallet_balance'),
     ];
 $reconciliationByChannel = Transactions::find()
@@ -589,7 +608,13 @@ $reconciliationByChannel = Transactions::find()
         'network_cleared' => 'SUM(CASE WHEN transactions.status = \'SUCCESS\' THEN transactions.amount ELSE 0 END)',
         'bank_settled'    => 'SUM(CASE WHEN transactions.bank_settled = true THEN transactions.amount ELSE 0 END)',
     ])
-    ->where(['students.school_id' => $userSchoolId, 'transactions.transaction_type' => 'TUITION'])
+    ->where(['students.school_id' => $userSchoolId, 'transactions.transaction_type' => 'TUITION']);
+if ($termWindow) {
+    $reconciliationByChannel->andWhere(['between', 'transactions.created_at', $termWindow['start'], $termWindow['end']]);
+} else {
+    $reconciliationByChannel->andWhere('1 = 0');
+}
+    $reconciliationByChannel = $reconciliationByChannel
     ->groupBy(['transactions.payment_channel'])
     ->asArray()
     ->all();
@@ -613,9 +638,9 @@ $stats['settlement_gap'] = $stats['network_cleared'] - $stats['bank_settled'];
         ->andWhere(['>=', 'transactions.created_at', date('Y-m-d H:i:s', strtotime('-7 days'))])
         ->sum('amount');
 
-    $stats['canteen_total_collected'] = (float) Transactions::find()
-    ->where(['transaction_type' => 'CANTEEN_SPEND', 'status' => 'SUCCESS', 'school_id' => $userSchoolId])
-    ->sum('amount');
+    $canteenTotalQuery = Transactions::find()
+        ->where(['transaction_type' => 'CANTEEN_SPEND', 'status' => 'SUCCESS', 'school_id' => $userSchoolId]);
+    $stats['canteen_total_collected'] = (float) $termScope($canteenTotalQuery, $termWindow)->sum('amount');
 
     $schoolId = $userSchoolId;
 
@@ -631,42 +656,44 @@ $stats['pos_device_active_count'] = (int) PosDevices::find()
     $stats['canteen_today_collected'] = (float) Transactions::find()
     ->where(['transaction_type' => 'CANTEEN_SPEND', 'status' => 'SUCCESS', 'school_id' => $userSchoolId])
     ->andWhere(['between', 'created_at', date('Y-m-d 00:00:00'), date('Y-m-d 23:59:59')])
+    ->andWhere($termWindow ? ['between', 'created_at', $termWindow['start'], $termWindow['end']] : '1 = 0')
     ->sum('amount');
 
-    $channelBreakdown = Transactions::find()
+    $channelBreakdownQuery = Transactions::find()
         ->joinWith('student')
         ->select(['transactions.payment_channel', 'total' => 'SUM(transactions.amount)'])
-        ->where(['students.school_id' => $userSchoolId])
+        ->where(['students.school_id' => $userSchoolId]);
+    $channelBreakdown = $termScope($channelBreakdownQuery, $termWindow, 'transactions.created_at')
         ->groupBy(['transactions.payment_channel'])
         ->asArray()
         ->all();
 
-$stats['total_approved_expenses'] = (float) ExpenseClaims::find()
-    ->where(['school_id' => $userSchoolId, 'status' => 'APPROVED'])
-    ->sum('amount');
+$approvedExpensesQuery = ExpenseClaims::find()
+    ->where(['school_id' => $userSchoolId, 'status' => 'APPROVED']);
+$stats['total_approved_expenses'] = (float) $termScope($approvedExpensesQuery, $termWindow)->sum('amount');
 
 $stats['net_available_tuition'] = $stats['total_tuition'] - $stats['total_approved_expenses'];
 
-    $defaulterHeatmap = Students::find()
-    ->select(['class_level', 'total_outstanding' => 'SUM(tuition_balance)', 'defaulter_count' => 'COUNT(CASE WHEN tuition_balance > 0 THEN 1 END)'])
-    ->where(['school_id' => $userSchoolId])
-    ->groupBy(['class_level'])
-    ->orderBy(['total_outstanding' => SORT_DESC])
-    ->asArray()
-    ->all();
+    $defaulterHeatmap = $selectedTermRollover
+        ? $this->calculateTermDefaulterHeatmap($selectedTermRollover, $userSchoolId)
+        : [];
 
-    $workingSchool = $this->getWorkingSchool();
-    $currentTermId = $workingSchool->current_term_id ?? null;
+    $currentTermId = $selectedTermRollover->id ?? null;
     $collectionVelocity = $this->buildCollectionVelocitySeries($userSchoolId, $currentTermId);
 
     $txSearchKeyword = trim($request->get('tx_q', ''));
-$txQuery = Transactions::find()
-    ->joinWith('student')
+    $txQuery = Transactions::find()
+        ->joinWith('student')
     ->where([
         'or',
         ['students.school_id' => $userSchoolId],
         ['transactions.school_id' => $userSchoolId],
     ]);
+    if ($termWindow) {
+        $txQuery->andWhere(['between', 'transactions.created_at', $termWindow['start'], $termWindow['end']]);
+    } else {
+        $txQuery->andWhere('1 = 0');
+    }
     if (!empty($txSearchKeyword)) {
         $txQuery->andWhere([
             'or',
@@ -711,10 +738,10 @@ public function actionTermHistory()
     }
 
     $schoolId = $this->requireWorkingSchoolId();
-   $rollovers = TermRollovers::find()
-    ->where(['school_id' => $schoolId])
-    ->orderBy(['created_at' => SORT_DESC])
-    ->all();
+    $rollovers = TermRollovers::find()
+        ->where(['school_id' => $schoolId])
+        ->orderBy(['created_at' => SORT_DESC, 'id' => SORT_DESC])
+        ->all();
 
 $currentTerm = null;
 foreach ($rollovers as $r) {
@@ -724,16 +751,40 @@ foreach ($rollovers as $r) {
     }
 }
 
-$mostRecentActiveId = null;
-foreach ($rollovers as $r) {
-    if ($r->status === 'ACTIVE') { $mostRecentActiveId = $r->id; break; }
-}
+    $mostRecentActiveId = (int) (TermRollovers::find()
+        ->select('id')
+        ->where(['school_id' => $schoolId, 'status' => 'ACTIVE'])
+        ->orderBy(['created_at' => SORT_DESC, 'id' => SORT_DESC])
+        ->scalar() ?: 0);
 
     return $this->render('term-history', [
         'rollovers' => $rollovers,
         'currentTerm' => $currentTerm,
-        'mostRecentActiveId' => $mostRecentActiveId, 
+        'mostRecentActiveId' => $mostRecentActiveId,
     ]);
+}
+
+public function actionSwitchTerm($id = null)
+{
+    $identity = Yii::$app->user->identity;
+    if (Yii::$app->user->isGuest || !in_array($identity->role, ['BURSAR', 'SCHOOL_ADMIN', 'SUPER_ADMIN'], true)) {
+        throw new \yii\web\ForbiddenHttpException();
+    }
+
+    $schoolId = $this->requireWorkingSchoolId();
+    $termNumber = (int) Yii::$app->request->post('term_number', 0);
+    $year = (int) Yii::$app->request->post('year', date('Y'));
+    if (!in_array($termNumber, [1, 2, 3], true) || $year < 2020 || $year > 2100) {
+        Yii::$app->session->setFlash('error', 'That term is not available for switching.');
+        return $this->redirect(['site/bursar']);
+    }
+
+    $termLabel = "Term {$termNumber}, {$year}";
+
+    Yii::$app->session->set('working_term_label_' . $schoolId, $termLabel);
+
+    Yii::$app->session->setFlash('success', "Now viewing {$termLabel}.");
+    return $this->redirect(['site/bursar']);
 }
 
 
@@ -741,11 +792,22 @@ private function buildCollectionVelocitySeries($schoolId, $currentTermId = null)
 {
     $periodDays = 90;
 
-    $currentStart = date('Y-m-d', strtotime("-{$periodDays} days"));
-    $currentEnd   = date('Y-m-d 23:59:59');
+    $currentRollover = $currentTermId ? TermRollovers::findOne(['id' => $currentTermId, 'school_id' => $schoolId]) : null;
+    $previousRollover = $currentRollover ? TermRollovers::find()
+        ->where(['school_id' => $schoolId])
+        ->andWhere(['<', 'id', $currentRollover->id])
+        ->andWhere(['<>', 'status', 'REVERSED'])
+        ->orderBy(['id' => SORT_DESC])
+        ->one() : null;
 
-    $previousStart = date('Y-m-d', strtotime("-" . ($periodDays * 2) . " days"));
-    $previousEnd   = date('Y-m-d 23:59:59', strtotime("-{$periodDays} days"));
+    $currentWindow = $currentRollover ? $this->getTermWindow($currentRollover) : [
+        'start' => date('Y-m-d', strtotime("-{$periodDays} days")),
+        'end' => date('Y-m-d 23:59:59'),
+    ];
+    $previousWindow = $previousRollover ? $this->getTermWindow($previousRollover) : [
+        'start' => date('Y-m-d', strtotime("-" . ($periodDays * 2) . " days")),
+        'end' => date('Y-m-d 23:59:59', strtotime("-{$periodDays} days")),
+    ];
 
     $buildSeries = function ($start, $end) use ($schoolId) {
         $rows = Transactions::find()
@@ -765,10 +827,84 @@ private function buildCollectionVelocitySeries($schoolId, $currentTermId = null)
     };
 
     return [
-        'current' => $buildSeries($currentStart, $currentEnd),
-        'previous' => $buildSeries($previousStart, $previousEnd),
+        'current' => $buildSeries($currentWindow['start'], $currentWindow['end']),
+        'previous' => $buildSeries($previousWindow['start'], $previousWindow['end']),
     ];
 
+}
+
+private function calculateTermOutstanding(TermRollovers $rollover, int $schoolId): float
+{
+    $window = $this->getTermWindow($rollover);
+    $total = 0.0;
+
+    foreach (Students::find()->where(['school_id' => $schoolId])->all() as $student) {
+        $total += $this->calculateTermStudentBalance($rollover, $student, $window);
+    }
+
+    return $total;
+}
+
+private function calculateTermStudentBalance(TermRollovers $rollover, Students $student, ?array $window = null): float
+{
+    $window ??= $this->getTermWindow($rollover);
+    $laterBilling = (float) TermRolloverDetails::find()
+        ->alias('d')
+        ->innerJoin('term_rollovers r', 'r.id = d.term_rollover_id')
+        ->where(['d.student_id' => $student->id])
+        ->andWhere(['<>', 'r.status', 'REVERSED'])
+        ->andWhere(['>', 'r.created_at', $window['end']])
+        ->sum('d.amount_billed');
+    $laterPayments = (float) Transactions::find()
+        ->where(['student_id' => $student->id, 'transaction_type' => 'TUITION', 'status' => 'SUCCESS'])
+        ->andWhere(['>', 'created_at', $window['end']])
+        ->sum('amount');
+
+    return max(0.0, (float) $student->tuition_balance - $laterBilling + $laterPayments);
+}
+
+private function calculateTermDefaulterHeatmap(TermRollovers $rollover, int $schoolId): array
+{
+    $window = $this->getTermWindow($rollover);
+    $classes = [];
+
+    foreach (Students::find()->where(['school_id' => $schoolId])->all() as $student) {
+        $laterBilling = (float) TermRolloverDetails::find()
+            ->alias('d')
+            ->innerJoin('term_rollovers r', 'r.id = d.term_rollover_id')
+            ->where(['d.student_id' => $student->id])
+            ->andWhere(['<>', 'r.status', 'REVERSED'])
+            ->andWhere(['>', 'r.created_at', $window['end']])
+            ->sum('d.amount_billed');
+        $laterPayments = (float) Transactions::find()
+            ->where(['student_id' => $student->id, 'transaction_type' => 'TUITION', 'status' => 'SUCCESS'])
+            ->andWhere(['>', 'created_at', $window['end']])
+            ->sum('amount');
+        $balance = (float) $student->tuition_balance - $laterBilling + $laterPayments;
+
+        if ($balance <= 0) {
+            continue;
+        }
+
+        $classLevel = $student->class_level;
+        if (!isset($classes[$classLevel])) {
+            $classes[$classLevel] = [
+                'class_level' => $classLevel,
+                'total_outstanding' => 0.0,
+                'defaulter_count' => 0,
+            ];
+        }
+        $classes[$classLevel]['total_outstanding'] += $balance;
+        $classes[$classLevel]['defaulter_count']++;
+    }
+
+    $classes = array_values($classes);
+    usort($classes, static function (array $first, array $second): int {
+        return $second['total_outstanding'] <=> $first['total_outstanding']
+            ?: strcasecmp($first['class_level'], $second['class_level']);
+    });
+
+    return $classes;
 }
 
  public function actionStudentsDirectory()
@@ -784,6 +920,13 @@ private function buildCollectionVelocitySeries($schoolId, $currentTermId = null)
     $balanceFilter = trim($request->get('balance_status', 'ALL'));
     $classLevel    = trim($request->get('class_level', 'ALL'));
     $sort          = trim($request->get('sort', ''));
+    $selectedTermLabel = Yii::$app->session->get('working_term_label_' . $userSchoolId);
+    $selectedTermRollover = $selectedTermLabel
+        ? TermRollovers::findOne(['school_id' => $userSchoolId, 'term_label' => $selectedTermLabel])
+        : TermRollovers::find()
+            ->where(['school_id' => $userSchoolId, 'status' => 'ACTIVE'])
+            ->orderBy(['created_at' => SORT_DESC, 'id' => SORT_DESC])
+            ->one();
 
     $classLevels = Students::find()
         ->select('class_level')
@@ -798,24 +941,11 @@ private function buildCollectionVelocitySeries($schoolId, $currentTermId = null)
         $studentQuery->andWhere(['or', ['ilike', 'name', $searchKeyword], ['payment_code' => $searchKeyword]]);
     }
 
-    if ($balanceFilter === 'OWING') {
-        $studentQuery->andWhere(['>', 'tuition_balance', 0]);
-    } elseif ($balanceFilter === 'CLEARED') {
-        $studentQuery->andWhere(['<=', 'tuition_balance', 0]);
-    }
-
     if ($classLevel !== 'ALL' && $classLevel !== '') {
         if (in_array($classLevel, $classLevels, true)) {
             $studentQuery->andWhere(['class_level' => $classLevel]);
         }
     }
-
-    $studentCountQuery = clone $studentQuery;
-    $studentPages = new \yii\data\Pagination([
-        'totalCount' => (int) $studentCountQuery->count(),
-        'pageSize' => 20,
-        'pageParam' => 'p_student',
-    ]);
 
     $orderBy = ['name' => SORT_ASC];
     if ($sort === 'class_level') {
@@ -824,10 +954,29 @@ private function buildCollectionVelocitySeries($schoolId, $currentTermId = null)
         $orderBy = ['class_level' => SORT_DESC, 'name' => SORT_ASC];
     }
 
-    $allStudents = $studentQuery->offset($studentPages->offset)
-        ->limit($studentPages->limit)
-        ->orderBy($orderBy)
-        ->all();
+    $students = $studentQuery->orderBy($orderBy)->all();
+    $studentBalances = [];
+    $termWindow = $selectedTermRollover ? $this->getTermWindow($selectedTermRollover) : null;
+    foreach ($students as $student) {
+        $studentBalances[$student->id] = $selectedTermRollover
+            ? $this->calculateTermStudentBalance($selectedTermRollover, $student, $termWindow)
+            : 0.0;
+    }
+
+    if ($balanceFilter === 'OWING') {
+        $students = array_filter($students, static fn (Students $student): bool => $studentBalances[$student->id] > 0);
+    } elseif ($balanceFilter === 'CLEARED') {
+        $students = array_filter($students, static fn (Students $student): bool => $studentBalances[$student->id] <= 0);
+    }
+    $students = array_values($students);
+
+    $studentPages = new \yii\data\Pagination([
+        'totalCount' => count($students),
+        'pageSize' => 20,
+        'pageParam' => 'p_student',
+    ]);
+
+    $allStudents = array_slice($students, $studentPages->offset, $studentPages->limit);
 
     return $this->render('students_directory', [
         'allStudents' => $allStudents,
@@ -836,6 +985,7 @@ private function buildCollectionVelocitySeries($schoolId, $currentTermId = null)
         'balanceFilter' => $balanceFilter,
         'classLevel' => $classLevel,
         'classLevels' => $classLevels,
+        'studentBalances' => $studentBalances,
     ]);
 }
 
@@ -865,7 +1015,7 @@ public function actionRegisterDevice()
         }
 
         if ($model->save()) {
-            Yii::$app->session->setFlash('success', "Device '{$model->label}' registered successfully — UID: {$model->device_uid}");
+            Yii::$app->session->setFlash('success', "Device '{$model->label}' registered successfully - UID: {$model->device_uid}");
             return $this->redirect(['site/register-device']);
         }
     }
@@ -933,10 +1083,11 @@ if ($existing) {
         try {
             if ($type === 'TUITION') {
                 // Ensure parents aren't accidentally overpaying tuition
-                if ($amount > (float)$student->tuition_balance) {
+                $outstandingTuition = max(0.0, (float) $student->tuition_balance);
+                if ($outstandingTuition <= 0 || $amount > $outstandingTuition) {
                     return ['success' => false, 'message' => 'Payment exceeds outstanding tuition fees.'];
                 }
-                $student->tuition_balance -= $amount;
+                $student->tuition_balance = max(0.0, $outstandingTuition - $amount);
             } else {
                 $student->swallet_balance += $amount;
             }
@@ -1014,7 +1165,7 @@ if ($existing) {
                 Yii::$app->mailer->compose()
                     ->setFrom(['marktravis689@gmail.com' => 'EduVest Core ERP Platform'])
                     ->setTo($model->email) 
-                    ->setSubject(" Account Credentials Activation — {$schoolName}")
+                    ->setSubject(" Account Credentials Activation - {$schoolName}")
                     ->setHtmlBody("
                         <div style='font-family: Arial, sans-serif; padding: 20px; line-height: 1.6;'>
                             <h2 style='color: #007bff;'>Welcome to the Team, @{$model->username}!</h2>
@@ -1260,7 +1411,7 @@ public function actionCanteenDebit()
                 Yii::$app->mailer->compose()
                     ->setFrom(['marktravis689@gmail.com' => 'KORA'])
                     ->setTo($student->parent_email)
-                    ->setSubject('Low Wallet Balance — ' . $student->name)
+                    ->setSubject('Low Wallet Balance - ' . $student->name)
                     ->setHtmlBody("
                         <div style='font-family: Arial, sans-serif; padding: 20px; line-height: 1.6;'>
                             <h2 style='color: #d97706;'>Low Wallet Balance</h2>
@@ -1706,18 +1857,31 @@ public function actionEditStudent($id)
         
         $q = trim($request->get('q', ''));
         $status = trim($request->get('balance_status', 'ALL'));
+        $selectedTermLabel = Yii::$app->session->get('working_term_label_' . $userSchoolId);
+        $selectedTermRollover = $selectedTermLabel
+            ? TermRollovers::findOne(['school_id' => $userSchoolId, 'term_label' => $selectedTermLabel])
+            : TermRollovers::find()
+                ->where(['school_id' => $userSchoolId, 'status' => 'ACTIVE'])
+                ->orderBy(['created_at' => SORT_DESC, 'id' => SORT_DESC])
+                ->one();
 
         $query = Students::find()->where(['school_id' => $userSchoolId]);
         if (!empty($q)) {
             $query->andWhere(['or', ['ilike', 'name', $q], ['payment_code' => $q]]);
         }
-        if ($status === 'OWING') {
-            $query->andWhere(['>', 'tuition_balance', 0]);
-        } elseif ($status === 'CLEARED') {
-            $query->andWhere(['=', 'tuition_balance', 0]);
-        }
-
         $students = $query->orderBy(['name' => SORT_ASC])->all();
+        $studentBalances = [];
+        $termWindow = $selectedTermRollover ? $this->getTermWindow($selectedTermRollover) : null;
+        foreach ($students as $student) {
+            $studentBalances[$student->id] = $selectedTermRollover
+                ? $this->calculateTermStudentBalance($selectedTermRollover, $student, $termWindow)
+                : 0.0;
+        }
+        if ($status === 'OWING') {
+            $students = array_filter($students, static fn (Students $student): bool => $studentBalances[$student->id] > 0);
+        } elseif ($status === 'CLEARED') {
+            $students = array_filter($students, static fn (Students $student): bool => $studentBalances[$student->id] <= 0);
+        }
 
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename=Student_Report_' . date('Ymd_His') . '.csv');
@@ -1726,7 +1890,7 @@ public function actionEditStudent($id)
         fputcsv($output, ['Student Full Name', 'Class Level', '10-Digit SchoolPay Code', 'Tuition Balance (UGX)', 'S-Wallet Balance (UGX)']);
 
         foreach ($students as $st) {
-            fputcsv($output, [$st->name, $st->class_level, $st->payment_code, $st->tuition_balance, $st->swallet_balance]);
+            fputcsv($output, [$st->name, $st->class_level, $st->payment_code, $studentBalances[$st->id] ?? 0, $st->swallet_balance]);
         }
         fclose($output);
         exit;
@@ -1874,8 +2038,12 @@ public function actionEditStudent($id)
 
     $termLabel = "Term {$termNumber}, {$year}";
 
-    // Prevent accidentally logging the exact same term twice
-    $duplicate = TermRollovers::findOne(['school_id' => $userSchoolId, 'term_label' => $termLabel]);
+    // Reversed terms may be started again; only an active duplicate is blocked.
+    $duplicate = TermRollovers::findOne([
+        'school_id' => $userSchoolId,
+        'term_label' => $termLabel,
+        'status' => 'ACTIVE',
+    ]);
     if ($duplicate) {
         Yii::$app->session->setFlash('error', "{$termLabel} has already been rolled over for this school.");
         return $this->redirect(['site/bursar']);
@@ -1887,18 +2055,23 @@ public function actionEditStudent($id)
 
     $dbTransaction = Yii::$app->db->beginTransaction();
     try {
-                $rollover = new TermRollovers();
-            $rollover->school_id = $userSchoolId;
-            $rollover->term_label = $termLabel;
-            $rollover->term_number = $termNumber;
-            $rollover->year = $year;
-            $rollover->base_tuition_fees = (float) $school->base_tuition_fees;
-            $rollover->students_billed = count($students);
-            $rollover->performed_by = $identity->id;
-            $rollover->status = 'ACTIVE';
-            if (!$rollover->save()) {
-                throw new \Exception('Failed to log rollover event.');
-            }
+        TermRollovers::updateAll(
+            ['status' => 'HISTORICAL'],
+            ['school_id' => $userSchoolId, 'status' => 'ACTIVE']
+        );
+
+        $rollover = new TermRollovers();
+        $rollover->school_id = $userSchoolId;
+        $rollover->term_label = $termLabel;
+        $rollover->term_number = $termNumber;
+        $rollover->year = $year;
+        $rollover->base_tuition_fees = (float) $school->base_tuition_fees;
+        $rollover->students_billed = count($students);
+        $rollover->performed_by = $identity->id;
+        $rollover->status = 'ACTIVE';
+        if (!$rollover->save()) {
+            throw new \Exception('Failed to log rollover event.');
+        }
 
         foreach ($students as $st) {
             $st->tuition_balance = (float) $st->tuition_balance + (float) $school->base_tuition_fees;
@@ -1975,7 +2148,16 @@ public function actionPrintTermReport($id)
 
         $selectedAssignmentId = (int)$request->get('assignment_id', 0);
         $selectedTerm = $request->get('term', 'TERM_1');
-        $academicYear = (int)date('Y');
+        $availableYears = Yii::$app->db->createCommand(
+            'SELECT DISTINCT academic_year FROM academic_marks WHERE school_id = :sid ORDER BY academic_year DESC'
+        )->bindValue(':sid', $schoolId)->queryColumn();
+        if (empty($availableYears)) {
+            $availableYears = [(int) date('Y')];
+        }
+        $academicYear = (int) $request->get('year', $availableYears[0]);
+        if ($academicYear < 2020 || $academicYear > 2100) {
+            $academicYear = (int) $availableYears[0];
+        }
 
         $activeAssignment = null;
         $studentsList = [];
@@ -2049,6 +2231,8 @@ public function actionPrintTermReport($id)
             'assignments' => $assignments,
             'activeAssignment' => $activeAssignment,
             'selectedTerm' => $selectedTerm,
+            'selectedYear' => $academicYear,
+            'availableYears' => $availableYears,
             'studentsList' => $studentsList,
             'existingMarks' => $existingMarks,
         ]);
@@ -2069,9 +2253,12 @@ public function actionSubmitMarks()
         $classLevel = $postData['class_level'] ?? '';
         $subjectName = $postData['subject_name'] ?? '';
         $term = $postData['term'] ?? 'TERM_1';
+        $academicYear = (int) ($postData['year'] ?? date('Y'));
+        if ($academicYear < 2020 || $academicYear > 2100) {
+            throw new \yii\web\BadRequestHttpException('Invalid academic year.');
+        }
         $submissionMode = $postData['submission_mode'] ?? 'SUBMIT_ALL';
         $selectedStudents = $postData['selected_students'] ?? [];
-        $academicYear = (int)date('Y');
 
         $scoresMatrix = $postData['Scores'] ?? [];
 
@@ -2139,7 +2326,12 @@ public function actionSubmitMarks()
             Yii::$app->session->setFlash('error', "Grading commit crash: " . $e->getMessage());
         }
 
-        return $this->redirect(['site/teacher-grading', 'assignment_id' => $postData['assignment_id'] ?? 0, 'term' => $term]);
+        return $this->redirect([
+            'site/teacher-grading',
+            'assignment_id' => $postData['assignment_id'] ?? 0,
+            'term' => $term,
+            'year' => $academicYear,
+        ]);
     }
     throw new \yii\web\ForbiddenHttpException();
 }
@@ -2269,7 +2461,7 @@ public function actionDosReview()
                 'academic_year' => $academicYear,
             ], $pendingCondition])->execute();
 
-            Yii::$app->session->setFlash('success', "Marks sheet for {$classLevel} — {$subjectName} successfully approved and sealed.");
+            Yii::$app->session->setFlash('success', "Marks sheet for {$classLevel} - {$subjectName} successfully approved and sealed.");
             return $this->redirect(['site/dos-review', 'class_level' => $classLevel, 'term' => $term]);
         }
         throw new \yii\web\ForbiddenHttpException();
@@ -2438,7 +2630,7 @@ private function computePrimaryClassRanking(int $schoolId, string $classLevel, s
         $subjectParams
     ))->queryAll();
 
-    // Rank by total marks, descending — highest score is position 1.
+    // Rank by total marks, descending - highest score is position 1.
     usort($rows, fn($a, $b) => $b['total_marks'] <=> $a['total_marks']);
 
     $classSize = count($rows);
@@ -2490,12 +2682,12 @@ private function computePrimaryClassRanking(int $schoolId, string $classLevel, s
                 'term' => $term,
                 'academic_year' => $academicYear,
             ], $pendingCondition])->execute();
-            Yii::$app->session->setFlash('success', "Marks sheet for {$classLevel} — {$subjectName} has been rejected back to the teacher.");
+            Yii::$app->session->setFlash('success', "Marks sheet for {$classLevel} - {$subjectName} has been rejected back to the teacher.");
             return $this->redirect(['site/dos-review', 'class_level' => $classLevel, 'term' => $term]);
         }
         throw new \yii\web\ForbiddenHttpException();
     }
-    
+
 
 
     public function actionSchoolAdmin()
@@ -2603,7 +2795,7 @@ public function actionBulkModerateMarks()
                     $affected = Yii::$app->db->createCommand()->update('academic_marks', $update, [
                         'id' => $recordId,
                         'school_id' => $schoolId,
-                        "{$col}_status" => 'PENDING_REVIEW', // only ever moves a column OUT of pending — siblings untouched
+                        "{$col}_status" => 'PENDING_REVIEW', // only ever moves a column OUT of pending - siblings untouched
                     ])->execute();
                     $touched += $affected;
                 }
@@ -2885,7 +3077,7 @@ public function actionWalletAdjust()
     $studentId = Yii::$app->request->post('student_id');
 
     if (empty($studentId)) {
-        Yii::$app->session->setFlash('error', 'No student selected — please search and pick a student first.');
+        Yii::$app->session->setFlash('error', 'No student selected - please search and pick a student first.');
         return $this->redirect(['site/bursar']);
     }
 
@@ -2939,7 +3131,7 @@ public function actionVoidTransaction()
     $id = Yii::$app->request->post('id');
 
     if (empty($id)) {
-        Yii::$app->session->setFlash('error', 'No transaction selected — please use the void icon on a transaction row.');
+        Yii::$app->session->setFlash('error', 'No transaction selected - please use the void icon on a transaction row.');
         return $this->redirect(['site/bursar']);
     }
 
@@ -3283,7 +3475,7 @@ public function actionStudentsByClass()
     return array_map(function ($s) {
         return [
             'id' => $s->id,
-            'text' => $s->name . ' — ' . $s->payment_code . ($s->wallet_frozen ? ' (Frozen)' : ''),
+            'text' => $s->name . ' - ' . $s->payment_code . ($s->wallet_frozen ? ' (Frozen)' : ''),
         ];
     }, $students);
 }
@@ -3464,14 +3656,27 @@ public function actionReverseTermRollover($id)
         return $this->redirect(['site/term-history']);
     }
 
-    // Safety rule: only the MOST RECENT rollover for this school can ever be reversed.
+    // Safety rule: only the most recent active rollover can be reversed.
     $newerExists = TermRollovers::find()
         ->where(['school_id' => $schoolId])
-        ->andWhere(['>', 'created_at', $rollover->created_at])
+        ->andWhere(['status' => 'ACTIVE'])
+        ->andWhere(['>', 'id', $rollover->id])
         ->exists();
 
     if ($newerExists) {
         Yii::$app->session->setFlash('error', 'Only the most recent term rollover can be reversed. A newer term has already started.');
+        return $this->redirect(['site/term-history']);
+    }
+
+    $previousRollover = TermRollovers::find()
+        ->where(['school_id' => $schoolId])
+        ->andWhere(['<>', 'status', 'REVERSED'])
+        ->andWhere(['<', 'id', $rollover->id])
+        ->orderBy(['id' => SORT_DESC])
+        ->one();
+
+    if (!$previousRollover) {
+        Yii::$app->session->setFlash('error', 'The first recorded term cannot be reversed. Start the next term instead.');
         return $this->redirect(['site/term-history']);
     }
 
@@ -3480,15 +3685,27 @@ public function actionReverseTermRollover($id)
         foreach ($rollover->details as $detail) {
             $student = Students::findOne($detail->student_id);
             if ($student) {
-                $student->tuition_balance = (float) $student->tuition_balance - (float) $detail->amount_billed;
-                $student->save(false);
+                    $student->tuition_balance = max(
+                        0.0,
+                        (float) $student->tuition_balance - (float) $detail->amount_billed
+                    );
+                    if (!$student->save(false, ['tuition_balance'])) {
+                        throw new \Exception('Failed to update a student balance during reversal.');
+                    }
             }
         }
 
         $rollover->status = 'REVERSED';
         $rollover->reversed_by = $identity->id;
         $rollover->reversed_at = date('Y-m-d H:i:s');
-        $rollover->save(false);
+        if (!$rollover->save(false)) {
+            throw new \Exception('Failed to update rollover status.');
+        }
+
+        $previousRollover->status = 'ACTIVE';
+        if (!$previousRollover->save(false, ['status'])) {
+            throw new \Exception('Failed to restore the previous active term.');
+        }
 
         $dbTransaction->commit();
         Yii::$app->session->setFlash('success', "{$rollover->term_label} has been reversed.");
@@ -3501,14 +3718,33 @@ public function actionReverseTermRollover($id)
 }
 private function getTermWindow(TermRollovers $rollover): array
 {
+    $previousRollover = TermRollovers::find()
+        ->where(['school_id' => $rollover->school_id])
+        ->andWhere(['<', 'created_at', $rollover->created_at])
+        ->orderBy(['created_at' => SORT_DESC, 'id' => SORT_DESC])
+        ->one();
+
     $nextRollover = TermRollovers::find()
         ->where(['school_id' => $rollover->school_id])
         ->andWhere(['>', 'created_at', $rollover->created_at])
         ->orderBy(['created_at' => SORT_ASC])
         ->one();
 
+    $start = $rollover->created_at;
+    if (!$previousRollover) {
+        $start = Transactions::find()
+            ->select('MIN(transactions.created_at)')
+            ->joinWith('student')
+            ->where([
+                'or',
+                ['transactions.school_id' => $rollover->school_id],
+                ['students.school_id' => $rollover->school_id],
+            ])
+            ->scalar() ?: $rollover->created_at;
+    }
+
     return [
-        'start' => $rollover->created_at,
+        'start' => $start,
         'end' => $nextRollover ? $nextRollover->created_at : date('Y-m-d H:i:s'),
     ];
 }
@@ -3600,6 +3836,7 @@ public function actionTermBalances($id)
             ->alias('d')
             ->innerJoin('term_rollovers r', 'r.id = d.term_rollover_id')
             ->where(['d.student_id' => $student->id])
+            ->andWhere(['<>', 'r.status', 'REVERSED'])
             ->andWhere(['>', 'r.created_at', $asOf])
             ->sum('d.amount_billed');
 
@@ -3646,9 +3883,9 @@ public function actionSponsorToggle($code)
 
     return [
         'success' => true,
-        'sponsorship_enabled' => $student->sponsorship_enabled,
+        'sponsorship_enabled' => $enable,
         'sponsor_code' => $student->sponsor_code,
-        'sponsor_url' => $student->sponsorship_enabled
+        'sponsor_url' => $enable
             ? Url::toRoute(['site/sponsor', 'code' => $student->sponsor_code], true)
             : null,
     ];
@@ -3690,7 +3927,6 @@ public function actionSponsorTopup($code)
 
     $existing = Transactions::findOne(['idempotency_key' => $idempotencyKey]);
     if ($existing) {
-        // Already processed — return the original outcome, don't charge again.
         return [
             'success' => $existing->status === 'SUCCESS',
             'message' => $existing->status === 'SUCCESS'
@@ -3702,7 +3938,7 @@ public function actionSponsorTopup($code)
     $amount = (float) $request->post('amount');
     $sponsorName = trim((string) $request->post('sponsor_name'));
 
-    $maxPerTransaction = 50000;   // UGX — tune per school
+    $maxPerTransaction = 50000;   // UGX 
 $maxPerStudentPerDay = 100000;
 
 if ($amount <= 0 || $amount > $maxPerTransaction) {

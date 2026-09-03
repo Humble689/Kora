@@ -1,6 +1,6 @@
 <?php
 use yii\helpers\Html;
-$this->title = 'Term Report — ' . $rollover->term_label;
+$this->title = 'Term Report - ' . $rollover->term_label;
 ?>
 <style>
 body { font-family: Arial, sans-serif; padding: 30px; color: #111; }
@@ -31,7 +31,7 @@ th { background: #f5f5f5; text-transform: uppercase; font-size: 11px; letter-spa
                 <tr>
                     <td><?= $i + 1 ?></td>
                     <td><?= Html::encode($detail->student->name ?? 'Unknown') ?></td>
-                    <td><?= Html::encode($detail->student->payment_code ?? '—') ?></td>
+                    <td><?= Html::encode($detail->student->payment_code ?? '-') ?></td>
                     <td class="right">UGX <?= number_format((float) $detail->amount_billed, 0) ?></td>
                 </tr>
             <?php endforeach; ?>

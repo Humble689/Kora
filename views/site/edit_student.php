@@ -2,7 +2,7 @@
 use yii\bootstrap5\ActiveForm;
 use yii\bootstrap5\Html;
 
-$this->title = 'Edit Student — ' . $model->name;
+$this->title = 'Edit Student - ' . $model->name;
 $this->registerCssFile('https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css');
 
 $hasFloor = $model->price_floor !== null;

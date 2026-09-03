@@ -4,6 +4,8 @@ declare(strict_types=1);
 /** @var array $assignments */
 /** @var array $activeAssignment */
 /** @var string $selectedTerm */
+/** @var int $selectedYear */
+/** @var array $availableYears */
 /** @var app\models\Students[] $studentsList */
 /** @var array $existingMarks */
 
@@ -60,17 +62,27 @@ function columnStatusMeta(string $status): array {
                     <?php endforeach; ?>
                 </select>
             </div>
-            <div class="col-12 col-md-4">
-                <label class="form-label small fw-bold tg-label">Target Term Assessment</label>
-                <select name="term" class="form-select form-select-sm tg-input fw-semibold" onchange="this.form.submit()">
-                    <option value="TERM_1" <?= $selectedTerm === 'TERM_1' ? 'selected' : '' ?>>Term 1</option>
-                    <option value="TERM_2" <?= $selectedTerm === 'TERM_2' ? 'selected' : '' ?>>Term 2</option>
-                    <option value="TERM_3" <?= $selectedTerm === 'TERM_3' ? 'selected' : '' ?>>Term 3</option>
-                </select>
-            </div>
-            <div class="col-12 col-md-3">
-                <button type="submit" class="btn btn-sm tg-btn-filter w-100 fw-bold"><i class="bi bi-arrow-clockwise"></i> Reload Sheet</button>
-            </div>
+           <div class="col-6 col-md-2">
+                    <label class="form-label small fw-bold tg-label">Term</label>
+                    <select name="term" class="form-select form-select-sm tg-input fw-semibold" onchange="this.form.submit()">
+                        <option value="TERM_1" <?= $selectedTerm === 'TERM_1' ? 'selected' : '' ?>>Term 1</option>
+                        <option value="TERM_2" <?= $selectedTerm === 'TERM_2' ? 'selected' : '' ?>>Term 2</option>
+                        <option value="TERM_3" <?= $selectedTerm === 'TERM_3' ? 'selected' : '' ?>>Term 3</option>
+                    </select>
+                </div>
+           <div class="col-6 col-md-2">
+                    <label class="form-label small fw-bold tg-label">Year</label>
+                    <select name="year" class="form-select form-select-sm tg-input fw-semibold" onchange="this.form.submit()">
+                        <?php foreach ($availableYears as $year): ?>
+                            <option value="<?= (int)$year ?>" <?= $selectedYear === (int)$year ? 'selected' : '' ?>><?= (int)$year ?></option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+          <div class="col-12 col-md-3">
+                    <button type="submit" class="btn btn-sm tg-btn-filter w-100 fw-bold">
+                        <i class="bi bi-arrow-clockwise"></i> Reload Sheet
+                    </button>
+                </div>
         </form>
     </div>
 
@@ -94,6 +106,7 @@ function columnStatusMeta(string $status): array {
         <input type="hidden" name="class_level" value="<?= Html::encode($activeAssignment['class_level']) ?>">
         <input type="hidden" name="subject_name" value="<?= Html::encode($activeAssignment['subject_name']) ?>">
         <input type="hidden" name="term" value="<?= Html::encode($selectedTerm) ?>">
+        <input type="hidden" name="year" value="<?= (int) $selectedYear ?>">
         <input type="hidden" name="assignment_id" value="<?= (int)$activeAssignment['id'] ?>">
 
         <?php
@@ -133,7 +146,7 @@ function columnStatusMeta(string $status): array {
         </div>
 
         <div class="tg-scroll-hint d-md-none mb-2">
-            <i class="bi bi-arrow-left-right"></i> Scroll sideways to see all score columns — name stays pinned.
+            <i class="bi bi-arrow-left-right"></i> Scroll sideways to see all score columns - name stays pinned.
         </div>
 
         <div class="card tg-table-card border-0 rounded-3 overflow-hidden mb-3">

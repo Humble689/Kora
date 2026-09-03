@@ -9,6 +9,7 @@ declare(strict_types=1);
 /** @var string $balanceFilter */
 /** @var string $classLevel */
 /** @var string[] $classLevels */
+/** @var array<int, float> $studentBalances */
 
 use yii\bootstrap5\LinkPager;
 use yii\bootstrap5\Html;
@@ -20,7 +21,6 @@ $totalCount = $studentPages->totalCount ?? count($allStudents);
 $pageStart  = $totalCount > 0 ? ($studentPages->getOffset() + 1) : 0;
 $pageEnd    = min($studentPages->getOffset() + $studentPages->getLimit(), $totalCount);
 
-// Class-level sort state, e.g. ?sort=class_level or ?sort=-class_level (Yii2 Sort convention)
 $currentSort   = Yii::$app->request->get('sort', '');
 $isClassAsc    = $currentSort === 'class_level';
 $isClassDesc   = $currentSort === '-class_level';
@@ -109,7 +109,7 @@ $classSortUrl  = Url::toRoute([
                             <?php foreach ($allStudents as $i => $st): ?>
                                 <?php
                                 $isNoShow = ($st->status ?? 'ACTIVE') !== 'ACTIVE';
-                                $tuitionBalance = (float)$st->tuition_balance;
+                                $tuitionBalance = (float)($studentBalances[$st->id] ?? 0);
                                 ?>
                                 <tr class="<?= $isNoShow ? 'opacity-75' : '' ?>">
                                     <td class="ps-3"><?= $studentPages->getOffset() + $i + 1 ?></td>
@@ -178,7 +178,7 @@ $classSortUrl  = Url::toRoute([
                 </table>
             </div>
 
-            <!-- Mobile: stacked student cards — every field shown, no side-scrolling -->
+            <!-- Mobile: stacked student cards - every field shown, no side-scrolling -->
             <div class="d-md-none">
                 <?php if (empty($allStudents)): ?>
                     <div class="text-center py-5 text-muted">
@@ -189,7 +189,7 @@ $classSortUrl  = Url::toRoute([
                     <?php foreach ($allStudents as $i => $st): ?>
                         <?php
                         $isNoShow = ($st->status ?? 'ACTIVE') !== 'ACTIVE';
-                        $tuitionBalance = (float)$st->tuition_balance;
+                        $tuitionBalance = (float)($studentBalances[$st->id] ?? 0);
                         ?>
                         <div class="kora-student-card border-bottom p-3 <?= $isNoShow ? 'opacity-75' : '' ?>">
                             <div class="d-flex justify-content-between align-items-start gap-2 mb-2">

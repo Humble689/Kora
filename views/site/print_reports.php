@@ -56,7 +56,7 @@ $this->title = 'Report Cards Hub';
     <div class="card border-0 shadow-sm rounded-3 overflow-hidden bg-white">
 
         <div class="card-header bg-primary text-white py-3 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-2">
-            <h5 class="card-title h6 fw-bold mb-0"><i class="bi bi-people-fill me-1"></i> Class Roll & Report Card Issuance Links — <?= $selectedYear ?></h5>
+            <h5 class="card-title h6 fw-bold mb-0"><i class="bi bi-people-fill me-1"></i> Class Roll & Report Card Issuance Links - <?= $selectedYear ?></h5>
 
             <div class="d-flex align-items-center gap-2">
                 <a href="<?= Url::toRoute(['site/batch-print-reports', 'class_level' => $selectedClass, 'term' => $selectedTerm, 'year' => $selectedYear]) ?>" class="btn btn-sm btn-light text-primary fw-bold text-xs d-flex align-items-center gap-1 shadow-sm" target="_blank">

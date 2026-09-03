@@ -4,15 +4,15 @@
 /** @var array $gradesList */
 /** @var string $term */
 /** @var int $year */
-/** @var int|null $classPosition   Rank within class (Primary only) — requires controller wiring, see note below */
-/** @var int|null $classSize       Number of students ranked (Primary only) — requires controller wiring */
+/** @var int|null $classPosition   Rank within class (Primary only) - requires controller wiring, see note below */
+/** @var int|null $classSize       Number of students ranked (Primary only) - requires controller wiring */
 
 use yii\helpers\Html;
 
 $this->title = 'Academic Report ' . $student->name;
 
 // These two are optional and only meaningful for Primary. They won't exist
-// yet unless the controller action is updated to compute and pass them —
+// yet unless the controller action is updated to compute and pass them -
 // see computePrimaryClassRanking() note at the end of this response.
 $classPosition = $classPosition ?? null;
 $classSize = $classSize ?? null;
@@ -28,7 +28,7 @@ foreach ($gradesList as $g) {
 }
 
 // Only show the weight suffix ("(20)") when more than one term's marks are
-// present — a single-term sheet doesn't need the weighting spelled out.
+// present - a single-term sheet doesn't need the weighting spelled out.
 $activeTermCount = ($hasBotData ? 1 : 0) + ($hasMotData ? 1 : 0) + ($hasEotData ? 1 : 0);
 $botColumnLabel = $activeTermCount > 1 ? 'BOT (20)' : 'BOT';
 $motColumnLabel = $activeTermCount > 1 ? 'MOT (30)' : 'MOT';
@@ -65,7 +65,7 @@ $secondSummaryLabel = "Awarding Classification Award";
 $promotionNote = null;
 
 // A-Level subsidiary subjects: General Paper, ICT, and Sub-Math each earn
-// 1 point if passed at C6 (50 marks) or better — capped at 2 points total.
+// 1 point if passed at C6 (50 marks) or better - capped at 2 points total.
 $subsidiarySubjects = ['General Paper', 'ICT', 'Sub-Math'];
 
 $allPointsArray = [];
@@ -80,7 +80,7 @@ foreach ($gradesList as $g) {
     $allRawScoresArray[] = $u['S'];
 
     // S3-S4: Ministry policy auto-promotes students to the next class even
-    // if they fail English or Mathematics — flagged as a note, not used to
+    // if they fail English or Mathematics - flagged as a note, not used to
     // change the computed aggregate/division itself.
     if (in_array($g['subject_name'], ['English', 'Mathematics']) && $u['G'] === 'F9') {
         $failsCoreSubject = true;
@@ -89,7 +89,7 @@ foreach ($gradesList as $g) {
     // Core parameters grouping calculation for A-level strings
     if (strpos($classLevel, 'Senior 5') !== false || strpos($classLevel, 'Senior 6') !== false) {
         if (in_array($g['subject_name'], $subsidiarySubjects)) {
-            // Pass threshold is C6 or better (score >= 50) — max 1 point each
+            // Pass threshold is C6 or better (score >= 50) - max 1 point each
             if ($u['P'] <= 6) $subsidiaryPoints += 1;
         } else {
             // Convert standard UNEB grades to A-Level Points values

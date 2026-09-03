@@ -35,7 +35,7 @@ $pageEnd    = min($txPages->getOffset() + $txPages->getLimit(), $totalCount);
 
 $userSchoolId = Yii::$app->user->identity->school_id;
 
-// Reconciliation chart data — one grouped bar per relevant channel,
+// Reconciliation chart data - one grouped bar per relevant channel,
 // Cleared vs Settled, replacing the old per-channel table.
 $reconciliationLabels = [];
 $reconciliationClearedValues = [];
@@ -49,11 +49,22 @@ foreach ($reconciliationByChannel as $row) {
 ?>
 
 <?php
-$currentTermRollover = \app\models\TermRollovers::find()
+$latestTermRollover = \app\models\TermRollovers::find()
     ->where(['school_id' => $workingSchool->id ?? 0])
     ->andWhere(['!=', 'status', 'REVERSED'])
     ->orderBy(['created_at' => SORT_DESC])
     ->one();
+$selectedTermLabel = Yii::$app->session->get(
+    'working_term_label_' . ($workingSchool->id ?? 0),
+    $latestTermRollover->term_label ?? 'Term 1, ' . date('Y')
+);
+$selectedTermNumber = (int) preg_replace('/\D+/', '', explode(',', $selectedTermLabel)[0] ?? '1');
+$selectedTermYear = (int) trim(explode(',', $selectedTermLabel)[1] ?? date('Y'));
+$currentTermRollover = \app\models\TermRollovers::findOne([
+    'term_label' => $selectedTermLabel,
+    'school_id' => $workingSchool->id ?? 0,
+]);
+$canStartSelectedTerm = !$currentTermRollover || $currentTermRollover->status === 'REVERSED';
 ?>
 
 
@@ -62,45 +73,102 @@ $currentTermRollover = \app\models\TermRollovers::find()
     <div class="container-fluid" style="max-width: 90rem;">
 
 <!-- Header -->
-<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center mb-4 border-bottom pb-3 gap-3">
-    <div>
-        <h1 class="h3 fw-bold text-dark mb-0">
+<div class="d-flex flex-column flex-md-row justify-content-between align-items-md-start mb-4 border-bottom pb-3 gap-3">
+    
+    <!-- Left side: Title + Term Status -->
+    <div class="flex-grow-1">
+        <h1 class="h3 fw-bold text-dark mb-1">
             <?= Html::encode($workingSchool->name ?? 'Financial Collections') ?> Control Centre
         </h1>
-        <p class="text-muted small mb-1">Real-time ledger overview and cross-channel multi-tenant settlement audits.</p>
-<?php if ($currentTermRollover): ?>
-    <?php
-    $termBadgeClass = match ($currentTermRollover->status) {
-        'ACTIVE' => ' text-success',
-        'HISTORICAL' => 'bg-light text-muted border',
-        default => 'text-danger',
-    };
-    $termBadgeLabel = match ($currentTermRollover->status) {
-        'ACTIVE' => 'Current: ',
-        'HISTORICAL' => 'On record: ',
-        default => 'Last term (reversed): ',
-    };
-    ?>
-    <span class="badge <?= $termBadgeClass ?> fw-semibold">
-        <i class="bi bi-calendar-check me-1"></i>
-        <?= $termBadgeLabel ?><?= Html::encode($currentTermRollover->term_label) ?>
-    </span>
-<?php else: ?>
-    <span class="badge bg-light text-muted border">
-        <i class="bi bi-calendar-x me-1"></i> No term started yet
-    </span>
-<?php endif; ?>
+        <p class="text-muted small mb-3 mb-md-2">
+            Real-time ledger overview and cross-channel multi-tenant settlement audits.
+        </p>
+
+        <!-- Selected Term Box -->
+        <div class="d-inline-flex flex-column flex-sm-row align-items-sm-center gap-2 p-2 bg-light border rounded-3 shadow-sm">
+            
+            <!-- Current / Selected Term Badge -->
+            <?php if ($currentTermRollover): ?>
+                <?php
+                $termBadgeClass = match ($currentTermRollover->status) {
+                    'ACTIVE'     => 'bg-success-subtle text-success border-success-subtle',
+                    'HISTORICAL' => 'bg-secondary-subtle text-secondary border-secondary-subtle',
+                    default      => 'bg-success-subtle text-success border-success-subtle',
+                };
+                ?>
+                <span class="badge <?= $termBadgeClass ?> fw-semibold px-3 py-2 d-inline-flex align-items-center">
+                    <i class="bi bi-calendar-check me-2"></i>
+                    Current: <?= Html::encode($currentTermRollover->term_label) ?>
+                </span>
+            <?php else: ?>
+                <span class="badge bg-light text-muted border fw-semibold px-3 py-2 d-inline-flex align-items-center">
+                    <i class="bi bi-calendar-x me-2"></i>
+                    <?= Html::encode($selectedTermLabel) ?> (not started)
+                </span>
+            <?php endif; ?>
+
+            <!-- Term Switcher (only when school is set) -->
+            <?php if ($workingSchool): ?>
+                <?= Html::beginForm(['site/switch-term'], 'post', [
+                    'class' => 'd-flex align-items-center gap-2 ms-sm-1',
+                    'style' => 'min-width: 0;' // prevents overflow
+                ]) ?>
+                    <?= Html::dropDownList(
+                        'term_number',
+                        $selectedTermNumber,
+                        [1 => 'Term 1', 2 => 'Term 2', 3 => 'Term 3'],
+                        [
+                            'class' => 'form-select form-select-sm border-0 bg-white shadow-sm',
+                            'style' => 'width: auto; min-width: 100px;',
+                            'aria-label' => 'Switch term'
+                        ]
+                    ) ?>
+                    <?= Html::hiddenInput('year', $selectedTermYear) ?>
+                    <button type="submit" 
+                            class="btn btn-sm btn-outline-primary d-flex align-items-center justify-content-center"
+                            title="Switch term"
+                            style="width: 36px; height: 32px;">
+                        <i class="bi bi-arrow-left-right"></i>
+                    </button>
+                <?= Html::endForm() ?>
+                <?php if ($canStartSelectedTerm): ?>
+                    <?= Html::beginForm(['site/term-rollover'], 'post', [
+                        'class' => 'd-inline-flex',
+                        'onsubmit' => "return confirm('Start and bill {$selectedTermLabel} for all active students?');",
+                    ]) ?>
+                        <?= Html::hiddenInput('term_number', $selectedTermNumber) ?>
+                        <?= Html::hiddenInput('year', $selectedTermYear) ?>
+                        <button type="submit" class="btn btn-sm btn-primary" title="Start and bill selected term">
+                            <i class="bi bi-play-fill me-1"></i> Start &amp; Bill
+                        </button>
+                    <?= Html::endForm() ?>
+                <?php endif; ?>
+            <?php endif; ?>
+        </div>
     </div>
-    <div class="d-flex align-items-center flex-wrap gap-2 kora-header-actions">
 
-        <?= Html::a('<i class="bi bi-clock-history me-1"></i> Term History', ['site/term-history'], ['class' => 'btn btn-outline-secondary fw-bold rounded-3 shadow-sm px-3']) ?>
+    <!-- Right side: Action buttons -->
+    <div class="d-flex flex-wrap align-items-center gap-2 kora-header-actions">
+        <?= Html::a(
+            '<i class="bi bi-clock-history me-1"></i> Term History',
+            ['site/term-history'],
+            ['class' => 'btn btn-outline-secondary fw-bold rounded-3 shadow-sm px-3']
+        ) ?>
 
-        <button type="button" class="btn btn-outline-primary fw-bold rounded-3 shadow-sm px-3 d-flex align-items-center justify-content-center gap-2" data-bs-toggle="modal" data-bs-target="#startTermModal">
-            <i class="bi bi-arrow-repeat"></i> Start New Term
+        <button type="button"
+                class="btn btn-outline-primary fw-bold rounded-3 shadow-sm px-3 d-flex align-items-center gap-2"
+                data-bs-toggle="modal"
+                data-bs-target="#startTermModal">
+            <i class="bi bi-arrow-repeat"></i>
+            <span class="d-none d-sm-inline">Start New Term</span>
+            <span class="d-inline d-sm-none">New Term</span>
         </button>
 
-        <a href="<?= Url::toRoute(['site/register-student']) ?>" class="btn btn-primary fw-bold rounded-3 shadow-sm px-3 d-flex align-items-center justify-content-center gap-2">
-            <i class="bi bi-person-plus-fill"></i> Enroll Student
+        <a href="<?= Url::toRoute(['site/register-student']) ?>"
+           class="btn btn-primary fw-bold rounded-3 shadow-sm px-3 d-flex align-items-center gap-2">
+            <i class="bi bi-person-plus-fill"></i>
+            <span class="d-none d-sm-inline">Enroll Student</span>
+            <span class="d-inline d-sm-none">Enroll</span>
         </a>
     </div>
 </div>
@@ -142,7 +210,7 @@ $currentTermRollover = \app\models\TermRollovers::find()
                 <div class="alert alert-warning small mb-0">
                     <strong>This will bill every active student</strong> the new term fee of UGX <?= number_format($stats['base_tuition_fees'] ?? 850000, 0) ?> and carry forward previous debts.
                     <br><br>
-                    Pocket money balances stay untouched. This action can only be reversed <strong>immediately after</strong>, before any newer term starts — after that it's permanent.
+                    Pocket money balances stay untouched. This action can only be reversed <strong>immediately after</strong>, before any newer term starts - after that it's permanent.
                 </div>
             </div>
             <div class="modal-footer border-0 pt-0">
@@ -239,7 +307,7 @@ $currentTermRollover = \app\models\TermRollovers::find()
                             <span class="badge bg-success-subtle text-success fw-semibold">Fully Settled</span>
                         <?php endif; ?>
                     </div>
-                    <p class="text-muted small mb-3">Mobile money, card, and online gateway payments only — cash and internal wallet transfers settle differently and aren't included here.</p>
+                    <p class="text-muted small mb-3">Mobile money, card, and online gateway payments only - cash and internal wallet transfers settle differently and aren't included here.</p>
 
                     <div class="d-flex flex-wrap gap-3 gap-md-4 mb-3">
                         <div class="flex-fill kora-stat-block">
@@ -324,21 +392,24 @@ $currentTermRollover = \app\models\TermRollovers::find()
                         <div class="kora-heatmap-scroll">
                             <div class="row g-2">
                                 <?php foreach ($defaulterHeatmap as $row):
-                                    $intensity = min(1, ((float)$row['total_outstanding']) / $maxOutstanding);
-                                    $bg = sprintf('rgba(220, 53, 69, %.2f)', 0.12 + ($intensity * 0.78));
+                                    $outstanding = max(0, (float) $row['total_outstanding']);
+                                    $intensity = min(1, $outstanding / $maxOutstanding);
+                                    $bg = $intensity > 0
+                                        ? sprintf('rgba(220, 53, 69, %.2f)', 0.12 + ($intensity * 0.78))
+                                        : '#f8f9fa';
                                     $textClass = $intensity > 0.45 ? 'text-white' : 'text-dark';
                                 ?>
                                     <div class="col-6 col-md-4 col-lg-3">
                                         <div class="rounded-3 p-2 text-center h-100 <?= $textClass ?>" style="background-color: <?= $bg ?>;">
-                                            <div class="small fw-semibold text-truncate" style="font-size: 0.72rem;"><?= Html::encode($row['class_level']) ?></div>
-                                            <div class="fw-bold" style="font-size: 0.85rem;">UGX <?= number_format((float)$row['total_outstanding'], 0) ?></div>
-                                            <div class="small" style="font-size: 0.68rem; opacity: 0.85;"><?= (int)$row['defaulter_count'] ?> defaulter<?= (int)$row['defaulter_count'] === 1 ? '' : 's' ?></div>
+                                            <div class="small fw-semibold text-truncate" title="<?= Html::encode($row['class_level']) ?>" style="font-size: 0.72rem;"><?= Html::encode($row['class_level']) ?></div>
+                                            <div class="fw-bold" style="font-size: 0.85rem;">UGX <?= number_format($outstanding, 0) ?></div>
+                                            <div class="small" style="font-size: 0.68rem; opacity: 0.85;"><?= (int) $row['defaulter_count'] ?> defaulter<?= (int) $row['defaulter_count'] === 1 ? '' : 's' ?></div>
                                         </div>
                                     </div>
                                 <?php endforeach; ?>
                             </div>
                         </div>
-                        <div class="small text-muted mt-2">Darker tiles indicate a higher concentration of outstanding fees within that class.</div>
+                        <div class="small text-muted mt-2">Darker tiles indicate a higher outstanding balance. Each tile represents a class.</div>
                     <?php endif; ?>
                 </div>
             </div>
@@ -348,7 +419,7 @@ $currentTermRollover = \app\models\TermRollovers::find()
         <div class="row g-3 mb-4">
             <div class="col-12">
                 <div class="card border-0 shadow-sm rounded-3 p-4 bg-white h-100 kora-card-contained">
-                    <h6 class="fw-bold text-dark mb-3"><i class="bi bi-graph-up-arrow me-2 text-primary"></i>Collection Velocity — This Term vs Last Term</h6>
+                    <h6 class="fw-bold text-dark mb-3"><i class="bi bi-graph-up-arrow me-2 text-primary"></i>Collection Velocity - This Term vs Last Term</h6>
                     <div class="kora-chart-box" style="height: 220px;">
                         <canvas id="velocityChart"></canvas>
                     </div>
@@ -450,7 +521,7 @@ $currentTermRollover = \app\models\TermRollovers::find()
                                             <button type="button" class="btn btn-sm btn-light border ms-1 kora-void-trigger" title="Void / Reverse This Transaction"
                                                     data-bs-toggle="modal" data-bs-target="#voidModal"
                                                     data-tx-id="<?= (int)$tx->id ?>"
-                                                    data-tx-label="<?= Html::encode(($tx->student->name ?? 'Unknown') . ' — ' . $tx->transaction_type . ' — UGX ' . number_format((float)$tx->amount, 0) . ' (' . date('Y-m-d', strtotime($tx->created_at)) . ')') ?>">
+                                                    data-tx-label="<?= Html::encode(($tx->student->name ?? 'Unknown') . ' - ' . $tx->transaction_type . ' - UGX ' . number_format((float)$tx->amount, 0) . ' (' . date('Y-m-d', strtotime($tx->created_at)) . ')') ?>">
                                                 <i class="bi bi-x-octagon text-danger"></i>
                                             </button>
                                         <?php endif; ?>
@@ -463,7 +534,7 @@ $currentTermRollover = \app\models\TermRollovers::find()
                 </table>
             </div>
 
-            <!-- Mobile: stacked receipt cards — every field shown, no side-scrolling -->
+            <!-- Mobile: stacked receipt cards - every field shown, no side-scrolling -->
             <div class="d-md-none">
                 <?php if (empty($recentTransactions)): ?>
                     <div class="text-center py-5 text-muted">
@@ -515,7 +586,7 @@ $currentTermRollover = \app\models\TermRollovers::find()
                                     <button type="button" class="btn btn-sm btn-light border flex-fill kora-void-trigger" title="Void / Reverse This Transaction"
                                             data-bs-toggle="modal" data-bs-target="#voidModal"
                                             data-tx-id="<?= (int)$tx->id ?>"
-                                            data-tx-label="<?= Html::encode(($tx->student->name ?? 'Unknown') . ' — ' . $tx->transaction_type . ' — UGX ' . number_format((float)$tx->amount, 0) . ' (' . date('Y-m-d', strtotime($tx->created_at)) . ')') ?>">
+                                            data-tx-label="<?= Html::encode(($tx->student->name ?? 'Unknown') . ' - ' . $tx->transaction_type . ' - UGX ' . number_format((float)$tx->amount, 0) . ' (' . date('Y-m-d', strtotime($tx->created_at)) . ')') ?>">
                                         <i class="bi bi-x-octagon text-danger"></i> Void
                                     </button>
                                 <?php endif; ?>
@@ -556,17 +627,17 @@ $currentTermRollover = \app\models\TermRollovers::find()
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label class="form-label">Step 1 — Class</label>
+                    <label class="form-label">Step 1 - Class</label>
                     <select id="walletClassSelect" class="form-select" required>
                         <option value="">Select class...</option>
                     </select>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label">Step 2 — Student</label>
+                    <label class="form-label">Step 2 - Student</label>
                     <select name="student_id" id="walletStudentSelect" class="form-select" required disabled>
                         <option value="">Select a class first...</option>
                     </select>
-                    <div class="form-text">Search by name — payment code shown to tell same-name students apart.</div>
+                    <div class="form-text">Search by name - payment code shown to tell same-name students apart.</div>
                 </div>
                 <div class="mb-3">
                     <label class="form-label">Action</label>
@@ -606,7 +677,7 @@ $currentTermRollover = \app\models\TermRollovers::find()
                     <input type="hidden" name="id" id="voidTxId" required>
                 </div>
                 <div class="mb-3">
-                    <label class="form-label small fw-semibold">Reason (required — audit log)</label>
+                    <label class="form-label small fw-semibold">Reason (required - audit log)</label>
                     <textarea name="void_reason" class="form-control" rows="3" required></textarea>
                 </div>
             </div>
@@ -652,7 +723,7 @@ $currentTermRollover = \app\models\TermRollovers::find()
                 </div>
                 <div class="alert alert-warning small mb-0 py-2 d-none" id="batchInvoiceWarning">
                     <i class="bi bi-exclamation-triangle-fill me-1"></i>
-                    This will add the base fee to <strong id="batchInvoiceWarningCount">0</strong> students' outstanding balances. This cannot be undone in bulk — you'd need to reverse each transaction individually.
+                    This will add the base fee to <strong id="batchInvoiceWarningCount">0</strong> students' outstanding balances. This cannot be undone in bulk - you'd need to reverse each transaction individually.
                 </div>
             </div>
             <div class="modal-footer">
@@ -754,6 +825,38 @@ $currentTermRollover = \app\models\TermRollovers::find()
         background: #f4f7fb;
     }
 
+    /* Term selector box */
+.kora-header-actions .btn {
+    white-space: nowrap;
+}
+
+/* Make the term switcher feel more integrated */
+.form-select-sm {
+    font-size: 0.8125rem;
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+}
+
+/* Soft success badge (Bootstrap 5.3+) */
+.bg-success-subtle {
+    background-color: rgba(25, 135, 84, 0.12) !important;
+}
+.border-success-subtle {
+    border-color: rgba(25, 135, 84, 0.25) !important;
+}
+
+
+
+/* Mobile tweaks */
+@media (max-width: 575.98px) {
+    .kora-header-actions {
+        width: 100%;
+    }
+    .kora-header-actions .btn {
+        flex: 1 1 auto;
+        justify-content: center;
+    }
+}
     .kora-modal .kora-btn-confirm {
         border-radius: 50px;
         font-weight: 700;
@@ -1075,7 +1178,7 @@ $this->registerJs(<<<JS
                         batchWarning.classList.remove('d-none');
                         batchSubmit.disabled = false;
                     } else {
-                        batchClassCount.textContent = 'No students found in this class — nothing to invoice.';
+                        batchClassCount.textContent = 'No students found in this class - nothing to invoice.';
                     }
                 });
         });

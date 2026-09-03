@@ -10,7 +10,7 @@ use yii\captcha\Captcha;
 
 $this->title = 'Contact Us';
 $this->params['breadcrumbs'][] = $this->title;
-$this->params['meta_description'] = 'Get in touch with the Kora team — questions, support, or partnership inquiries.';
+$this->params['meta_description'] = 'Get in touch with the Kora team - questions, support, or partnership inquiries.';
 $this->params['meta_keywords'] = 'kora, school payments, support, contact';
 
 $htmlIcon = <<<HTML
@@ -37,7 +37,7 @@ $labelOptions = ['class' => 'form-label fw-semibold small'];
     <div class="mx-auto" style="max-width: 480px;">
         <i class="bi bi-check-circle-fill" style="font-size: 3rem; color: var(--theme-primary, #16a34a);"></i>
         <h1 class="h3 fw-bold mb-2 mt-3">Message sent</h1>
-        <p class="text-muted mb-4">Thanks for reaching out — the Kora team will get back to you shortly.</p>
+        <p class="text-muted mb-4">Thanks for reaching out - the Kora team will get back to you shortly.</p>
 
         <?php if (YII_DEBUG && Yii::$app->mailer->useFileTransport): ?>
             <p class="text-body-tertiary small mb-4">

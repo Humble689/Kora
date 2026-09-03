@@ -205,7 +205,7 @@ table.staff-table { width: 100%; border-collapse: collapse; }
                                     </div>
                                 </div>
                                 <?php else: ?>
-                                    <span class="text-muted small">—</span>
+                                    <span class="text-muted small">-</span>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -225,13 +225,13 @@ table.staff-table { width: 100%; border-collapse: collapse; }
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content rounded-4 border-0">
             <div class="modal-header border-0 pb-0">
-                <h5 class="modal-title fw-bold">Assign Terminal — <span id="assignDeviceStaffName"></span></h5>
+                <h5 class="modal-title fw-bold">Assign Terminal - <span id="assignDeviceStaffName"></span></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body pt-2">
                 <label class="form-label small fw-semibold text-muted text-uppercase" style="font-size: 11px;">Select an existing terminal</label>
                 <select id="assignDeviceSelect" class="form-select mb-3">
-                    <option value="">— No terminal (unassign) —</option>
+                    <option value="">- No terminal (unassign) -</option>
                     <?php foreach ($devices as $device): ?>
                         <option value="<?= $device->id ?>">
                             <?= Html::encode($device->label ?: $device->device_uid) ?>

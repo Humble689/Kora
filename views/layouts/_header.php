@@ -46,7 +46,7 @@ echo Nav::widget([
             ['label' => 'SchoolAdmin', 'url' => ['/site/school-admin']]
         ) : '',
 
-        // Settings — visible to every logged-in role
+        // Settings - visible to every logged-in role
         !$isGuest ? (
             [
                 'label' => '<i class="bi bi-gear-fill"></i> <span class="d-none d-md-inline">Settings</span>',
