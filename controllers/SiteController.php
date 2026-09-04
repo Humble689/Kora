@@ -167,21 +167,32 @@ class SiteController extends Controller
 }
 
 
-private function tooManyAttempts(string $bucket, int $maxAttempts, int $windowSeconds): bool
+private function tooManyAttempts(string $bucket, int $maxAttempts, int $windowSeconds, int $penaltySeconds): bool
 {
     $cache = Yii::$app->cache;
-    $key = 'ratelimit_' . $bucket . '_' . Yii::$app->request->userIP;
+    $suffix = Yii::$app->request->userIP;
+    $lockKey = 'ratelimit_lock_' . $bucket . '_' . $suffix;
+    $countKey = 'ratelimit_count_' . $bucket . '_' . $suffix;
     $now = time();
 
-    $data = $cache->get($key);
+    if ($cache->exists($lockKey)) {
+        return true;
+    }
+
+    $data = $cache->get($countKey);
     if ($data === false || $data['expires'] < $now) {
         $data = ['count' => 0, 'expires' => $now + $windowSeconds];
     }
 
     $data['count']++;
-    $cache->set($key, $data, $windowSeconds);
+    if ($data['count'] > $maxAttempts) {
+        $cache->set($lockKey, $now + $penaltySeconds, $penaltySeconds);
+        $cache->delete($countKey);
+        return true;
+    }
 
-    return $data['count'] > $maxAttempts;
+    $cache->set($countKey, $data, $windowSeconds);
+    return false;
 }
 
 
@@ -398,14 +409,14 @@ public function actionRequestPasswordReset()
 
     if ($model->load(Yii::$app->request->post()) && $model->validate()) {
 
-        if ($this->tooManyAttempts('password_reset_request', 5, 900)) {
-            Yii::$app->session->setFlash('error', 'Too many requests. Please wait and try again.');
+        if ($this->tooManyAttempts('password_reset_request', 5, 120, 900)) {
+            Yii::$app->session->setFlash('error', 'Too many requests. Please wait 15 minutes and try again.');
             return $this->render('request-password-reset', ['model' => $model]);
         }
 
         $user = User::findOne(['email' => trim($model->email)]);
 
-        // Same message either way - never reveal whether the email exists
+        // never reveal whether the email exists
         Yii::$app->session->setFlash('success', 'If an account exists for that email, a reset link has been sent.');
 
         if ($user) {
@@ -421,7 +432,7 @@ public function actionRequestPasswordReset()
                         <div style='font-family: Arial, sans-serif; padding: 20px; line-height: 1.6;'>
                             <h2 style='color: #16a34a;'>Password Reset Requested</h2>
                             <p>We received a request to reset the password for your KORA account (<strong>{$user->username}</strong>).</p>
-                            <p><a href='{$resetUrl}' style='background-color: #16a34a; color: white; padding: 10px 20px; text-decoration: none; font-weight: bold; border-radius: 4px; display: inline-block;'>Reset Password</a></p>
+                            <p><a href='{$resetUrl}' style='background-color: #1658a3; color: white; padding: 10px 20px; text-decoration: none; font-weight: bold; border-radius: 4px; display: inline-block;'>Reset Password</a></p>
                             <p style='color: #6b7280; font-size: 13px;'>This link expires in 1 hour. If you didn't request this, you can safely ignore this email.</p>
                         </div>
                     ")
@@ -524,9 +535,9 @@ public function actionResetPassword(string $token)
     public function actionLookup()
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
-         if ($this->tooManyAttempts('lookup', 10, 60)) {
+         if ($this->tooManyAttempts('lookup', 10, 30, 900)) {
         Yii::$app->response->statusCode = 429;
-        return ['success' => false, 'message' => 'Too many attempts. Please wait a moment and try again.'];
+        return ['success' => false, 'message' => 'Too many attempts. Please wait 15 minutes and try again.'];
     }
         $model = new StudentLookup();
 
@@ -1216,22 +1227,32 @@ public function actionCanteenTerminal()
     ]);
 }
 
-private function tooManyAttemptsForUser(string $bucket, int $maxAttempts, int $windowSeconds): bool
+private function tooManyAttemptsForUser(string $bucket, int $maxAttempts, int $windowSeconds, int $penaltySeconds): bool
 {
     $cache = Yii::$app->cache;
     $userId = Yii::$app->user->isGuest ? 'guest_' . Yii::$app->request->userIP : Yii::$app->user->id;
-    $key = 'ratelimit_' . $bucket . '_' . $userId;
+    $lockKey = 'ratelimit_lock_' . $bucket . '_' . $userId;
+    $countKey = 'ratelimit_count_' . $bucket . '_' . $userId;
     $now = time();
 
-    $data = $cache->get($key);
+    if ($cache->exists($lockKey)) {
+        return true;
+    }
+
+    $data = $cache->get($countKey);
     if ($data === false || $data['expires'] < $now) {
         $data = ['count' => 0, 'expires' => $now + $windowSeconds];
     }
 
     $data['count']++;
-    $cache->set($key, $data, $windowSeconds);
+    if ($data['count'] > $maxAttempts) {
+        $cache->set($lockKey, $now + $penaltySeconds, $penaltySeconds);
+        $cache->delete($countKey);
+        return true;
+    }
 
-    return $data['count'] > $maxAttempts;
+    $cache->set($countKey, $data, $windowSeconds);
+    return false;
 }
 
 public function actionAssignDevice()
@@ -1293,8 +1314,8 @@ public function actionAssignDevice()
 public function actionCanteenDebit()
 {
     Yii::$app->response->format = Response::FORMAT_JSON;
-    $request = Yii::$app->request;if ($this->tooManyAttemptsForUser('canteen_debit', 20, 60)) {
-    return ['success' => false, 'message' => 'Too many requests in a short time. Please slow down.'];
+    $request = Yii::$app->request;if ($this->tooManyAttemptsForUser('canteen_debit', 20, 60, 900)) {
+    return ['success' => false, 'message' => 'Too many requests. Please wait 15 minutes and try again.'];
 }
 
     $idempotencyKey = trim((string) $request->post('idempotency_key'));
@@ -3914,9 +3935,9 @@ public function actionSponsorTopup($code)
     if (!$request->isPost) {
         return ['success' => false, 'message' => 'Bad Request.'];
     }
-      if ($this->tooManyAttempts('sponsor_topup', 5, 60)) {
+    if ($this->tooManyAttempts('sponsor_topup', 5, 60, 900)) {
         Yii::$app->response->statusCode = 429;
-        return ['success' => false, 'message' => 'Too many attempts. Please wait a moment and try again.'];
+        return ['success' => false, 'message' => 'Too many attempts. Please wait 15 minutes and try again.'];
     }
 
     $idempotencyKey = trim((string) $request->post('idempotency_key'));
@@ -3998,9 +4019,9 @@ if ($amount <= 0 || $amount > $maxPerTransaction) {
 public function actionSponsorLookup()
 {
     Yii::$app->response->format = Response::FORMAT_JSON;
-     if ($this->tooManyAttempts('sponsor_lookup', 8, 60)) {
+    if ($this->tooManyAttempts('sponsor_lookup', 8, 60, 900)) {
         Yii::$app->response->statusCode = 429;
-        return ['success' => false, 'message' => 'Too many attempts. Please wait a moment and try again.'];
+        return ['success' => false, 'message' => 'Too many attempts. Please wait 15 minutes and try again.'];
     }
     $code = trim((string) Yii::$app->request->post('payment_code'));
 

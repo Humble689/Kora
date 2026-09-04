@@ -8,7 +8,6 @@ use Yii;
 use yii\db\ActiveRecord;
 
 /**
- * This is the model class for table "teacher_assignment".
  *
  * @property int $id
  * @property int $school_id
@@ -52,11 +51,7 @@ class TeacherAssignment extends ActiveRecord
         ];
     }
 
-    /**
-     * The teacher this assignment belongs to.
-     * ADAPT: swap `User` for your actual identity model class if different
-     * (matches whatever class Yii::$app->user->identity resolves to).
-     */
+   
     public function getTeacher()
     {
         return $this->hasOne(User::class, ['id' => 'teacher_id']);

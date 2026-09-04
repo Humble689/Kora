@@ -73,7 +73,6 @@ class Students extends \yii\db\ActiveRecord
     }
 
     /**
-     * Gets query for [[School]].
      *
      * @return \yii\db\ActiveQuery
      */
