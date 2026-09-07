@@ -1,7 +1,16 @@
 <?php
 
+$envFile = dirname(__DIR__) . '/web/.env';
+$environment = is_file($envFile) ? (parse_ini_file($envFile, false, INI_SCANNER_RAW) ?: []) : [];
+foreach ($environment as $name => $value) {
+    if (getenv($name) === false) {
+        putenv($name . '=' . $value);
+    }
+}
+
 $params = require __DIR__ . '/params.php';
 $db = require __DIR__ . '/db.php';
+
 
 $config = [
     'id' => 'basic',
@@ -11,8 +20,17 @@ $config = [
         'singletons' => [
             \yii\mail\MailerInterface::class => [
                 'class' => \yii\symfonymailer\Mailer::class,
+                'transport' => [
+                    'scheme' => 'smtps',
+                    'host' => 'smtp.gmail.com',
+                    'username' => getenv('MAIL_USERNAME') ?: 'marktravis689@gmail.com',
+                    'password' => str_replace(' ', '', getenv('MAIL_PASSWORD') ?: ''),
+                    'port' => 465,
+                ],
+
+
                 // send all mails to a file by default.
-                'useFileTransport' => true,
+                'useFileTransport' => false,
                 'viewPath' => '@app/mail',
             ],
         ],

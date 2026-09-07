@@ -1173,8 +1173,8 @@ if ($existing) {
 
                 $loginUrl = \yii\helpers\Url::toRoute(['site/login'], true);
                 
-                Yii::$app->mailer->compose()
-                    ->setFrom(['marktravis689@gmail.com' => 'EduVest Core ERP Platform'])
+                $emailSent = Yii::$app->mailer->compose()
+                    ->setFrom([Yii::$app->params['senderEmail'] => 'Kora ERP Platform'])
                     ->setTo($model->email) 
                     ->setSubject(" Account Credentials Activation - {$schoolName}")
                     ->setHtmlBody("
@@ -1194,7 +1194,14 @@ if ($existing) {
                     ")
                     ->send();
 
-                Yii::$app->session->setFlash('success', "Staff account '{$model->username}' provisioned! Activation email dispatched to: " . \yii\helpers\Html::encode($model->email));
+                if (!$emailSent) {
+                    Yii::error('Staff activation email could not be sent to ' . $model->email, __METHOD__);
+                    Yii::$app->session->setFlash('error', 'Staff account created, but the activation email could not be sent. Check the mail configuration and logs.');
+                }
+
+                if ($emailSent) {
+                    Yii::$app->session->setFlash('success', "Staff account '{$model->username}' provisioned! Activation email dispatched to: " . \yii\helpers\Html::encode($model->email));
+                }
 
                 if ($currentUser->role === 'SUPER_ADMIN') {
                     return $this->redirect(['site/super-admin']);
@@ -1649,13 +1656,13 @@ public function actionDeviceLookup()
 
                 $loginUrl = \yii\helpers\Url::toRoute(['site/login'], true);
                 
-                Yii::$app->mailer->compose()
-                    ->setFrom(['marktravis689@gmail.com' => 'EduVest SaaS Core ERP Platform'])
+                $emailSent = Yii::$app->mailer->compose()
+                    ->setFrom([Yii::$app->params['senderEmail'] => 'Kora SaaS Core ERP Platform'])
                     ->setTo($model->contact_email)
                     ->setSubject(" Onboarding Activation Packet for " . $model->name)
                     ->setHtmlBody("
                         <div style='font-family: Arial, sans-serif; padding: 20px; line-height: 1.6; color: #333;'>
-                            <h1 style='color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 10px;'>Welcome to EduVest ERP, {$model->name}!</h1>
+                            <h1 style='color: #007bff; border-bottom: 2px solid #007bff; padding-bottom: 10px;'>Welcome to Kora ERP, {$model->name}!</h1>
                             <p>Your institutional multi-tenant space has been successfully initialized on our cloud network server nodes.</p>
                             
                             <div style='background-color: #f8f9fa; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; border-radius: 4px;'>
@@ -1674,11 +1681,15 @@ public function actionDeviceLookup()
 
                             <p style='margin-top: 30px; font-size: 12px; color: #6c757d; border-top: 1px solid #ddd; padding-top: 10px;'>
                                 This is an automated network notification broadcast transmission dispatch. Please do not reply directly to this mail string.<br>
-                                © 2026 EduVest Management Systems Core Framework. All rights reserved.
+                                © 2026 Kora Management Systems Core Framework. All rights reserved.
                             </p>
                         </div>
                     ")
                     ->send();
+
+                if (!$emailSent) {
+                    throw new \Exception('School administrator account was created, but the activation email could not be sent.');
+                }
 
                 $dbTransaction->commit();
                 
