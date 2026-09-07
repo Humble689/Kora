@@ -35,8 +35,6 @@ $pageEnd    = min($txPages->getOffset() + $txPages->getLimit(), $totalCount);
 
 $userSchoolId = Yii::$app->user->identity->school_id;
 
-// Reconciliation chart data - one grouped bar per relevant channel,
-// Cleared vs Settled, replacing the old per-channel table.
 $reconciliationLabels = [];
 $reconciliationClearedValues = [];
 $reconciliationSettledValues = [];

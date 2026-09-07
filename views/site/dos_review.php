@@ -35,10 +35,7 @@ $pendingCount = $pendingTotal;
                 <h1 class="dos-page-title mb-1"><i class="bi bi-clipboard-check"></i> Academic Review Center</h1>
                 <p class="dos-page-subtitle mb-0">Moderate and seal submitted marks before report cards are printed.</p>
             </div>
-            <!-- <div class="dos-summary-chip">
-                <span class="dos-summary-count"><?= $pendingCount ?></span>
-                <span class="dos-summary-label">Pending Review<?= $pendingCount === 1 ? '' : 's' ?></span>
-            </div> -->
+           
         </div>
     </div>
 
@@ -258,7 +255,6 @@ $pendingCount = $pendingTotal;
         min-height: 100vh;
     }
 
-    /* ===== Header ===== */
     .dos-page-title {
         color: var(--kora-ink);
         font-weight: 700;
@@ -302,7 +298,6 @@ $pendingCount = $pendingTotal;
         letter-spacing: 0.03em;
     }
 
-    /* ===== Cards ===== */
     .dos-card, .dos-toolbar-card, .dos-table-card {
         background: #fff;
         border: 1px solid var(--kora-border) !important;
@@ -338,7 +333,6 @@ $pendingCount = $pendingTotal;
         color: #fff;
     }
 
-    /* ===== Class badge + search ===== */
     .dos-class-badge {
         display: inline-flex;
         align-items: center;
@@ -485,7 +479,7 @@ $pendingCount = $pendingTotal;
     .dos-btn-warning { background: #f0ad0b; color: #fff; }
     .dos-btn-warning:hover { background: #d99406; color: #fff; }
 
-    /* ===== Table ===== */
+    /* Table */
     #dosGridTable thead th {
         background: var(--kora-blue-900);
         color: rgba(255, 255, 255, 0.9);

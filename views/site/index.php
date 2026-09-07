@@ -300,7 +300,7 @@ $this->registerJsFile('@web/js/custom.js', ['depends' => [\yii\web\JqueryAsset::
                     <div>
                         <h3>Audit Friendly Flow</h3>
                         <p>Backend processing and role permissions stay untouched while the front-end experience is modernized.</p>
-                    </div>h
+                    </div>
                 </div>
             </div>
         </div>
@@ -589,6 +589,153 @@ function executeSponsorLookup() {
     
     .container {
         position: relative;
-        z-index: 2;
+        z-index: 25;
+    }
+
+
+    @media (max-width: 767.98px) {
+
+        #verification {
+            min-height: auto;
+            padding-top: 100px !important;
+            padding-bottom: 40px !important;
+        }
+
+        #verification .heading {
+            font-size: 1.65rem;
+            line-height: 1.3;
+        }
+
+        #verification .row {
+            padding-top: 0 !important;
+        }
+
+        #verification .col-lg-6 .img-wrap {
+            margin-top: 1.5rem;
+        }
+
+        .blob {
+            opacity: 0.06;
+        }
+
+        /* --- Payment code form: bigger, thumb-friendly targets --- */
+        #paymentCodeInput,
+        #sponsorLookupCode,
+        #tuitionInputAmount,
+        #swalletInputAmount {
+            font-size: 16px; /* prevents iOS auto-zoom on focus */
+        }
+
+        #paymentCodeInput {
+            letter-spacing: 2px;
+        }
+
+        #submitBtn,
+        .btn-lg {
+            font-size: 1rem;
+            padding-top: 0.75rem;
+            padding-bottom: 0.75rem;
+        }
+
+        /* --- Sponsor lookup: stack input and button --- */
+        #sponsorSectionWrapper .input-group {
+            flex-direction: column;
+        }
+
+        #sponsorSectionWrapper .input-group #sponsorLookupCode {
+            border-radius: 0.5rem !important;
+            margin-bottom: 0.5rem;
+        }
+
+        #sponsorSectionWrapper .input-group .btn {
+            border-radius: 0.5rem !important;
+            width: 100%;
+        }
+
+        /* --- Student file / financial workspace card --- */
+        #financialInterface .card {
+            border-radius: 1rem !important;
+        }
+
+        #displayProfileName,
+        #displaySchoolName,
+        #displayClassLevel {
+            font-size: 0.85rem;
+        }
+
+        /* --- Service tabs: keep both visible without crowding --- */
+        #serviceTabs .nav-link {
+            font-size: 0.85rem;
+            padding-left: 0.5rem;
+            padding-right: 0.5rem;
+        }
+
+        #serviceTabsContent {
+            padding: 1.25rem !important;
+        }
+
+        .fs-4.font-monospace {
+            font-size: 1.15rem !important;
+            word-break: break-word;
+        }
+
+        /* --- Feature / insight rows: tighten spacing on stacked columns --- */
+        .section {
+            padding-top: 2.5rem;
+            padding-bottom: 2.5rem;
+        }
+
+        .service-alt {
+            align-items: flex-start;
+        }
+
+        .service-alt span {
+            font-size: 1.5rem;
+            margin-right: 1rem !important;
+        }
+
+        .sec-features .feature h3 {
+            font-size: 1.05rem;
+        }
+
+        /* --- CTA band: stack heading and button, center on mobile --- */
+        .sec-cta .row {
+            text-align: center;
+        }
+
+        .sec-cta .col-lg-5.text-end {
+            text-align: center !important;
+            margin-top: 1.25rem;
+        }
+
+        .sec-cta .heading {
+            font-size: 1.4rem;
+        }
+
+        /* --- Footer: comfortable stacking and spacing between widgets --- */
+        .site-footer .widget {
+            margin-bottom: 1.75rem;
+        }
+
+        .site-footer .col-lg-4:last-child .widget {
+            margin-bottom: 0;
+        }
+
+        .site-footer ul.social {
+            display: flex;
+            gap: 0.75rem;
+        }
+    }
+
+    /* Extra-small phones */
+    @media (max-width: 375px) {
+        #verification .heading {
+            font-size: 1.4rem;
+        }
+
+        #paymentCodeInput {
+            letter-spacing: 1px;
+            font-size: 15px;
+        }
     }
 </style>

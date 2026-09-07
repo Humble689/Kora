@@ -64,13 +64,15 @@ $username = !$isGuest ? Yii::$app->user->identity->username : '';
                         </ul>
                     </div>
                     
-                    <div class="col-3 col-lg-2 text-end d-flex align-items-center justify-content-end gap-3">
+                    <div class="col-3 col-lg-2 text-end d-flex align-items-center justify-content-end gap-2 gap-lg-3 nav-actions">
                         
                         <?php if (!$isGuest): ?>
-                            <?= Html::beginForm(['/site/logout'], 'post', ['class' => 'd-inline m-0']) ?>
+                            <?= Html::beginForm(['/site/logout'], 'post', ['class' => 'd-inline m-0 logout-form']) ?>
                             <?= Html::submitButton(
-                                'Logout (' . Html::encode($username) . ')',
-                                ['class' => 'btn btn-sm btn-danger px-3 py-1.5 fw-bold rounded-pill text-xs shadow-sm']
+                                '<i class="bi bi-box-arrow-right"></i>'
+                                . '<span class="d-none d-sm-inline ms-1">Logout (' . Html::encode($username) . ')</span>'
+                                . '<span class="d-inline d-sm-none ms-1">Logout</span>',
+                                ['class' => 'btn btn-sm btn-danger px-3 py-1 fw-bold rounded-pill shadow-sm logout-btn']
                             ) ?>
                             <?= Html::endForm() ?>
                         <?php else: ?>
@@ -100,10 +102,47 @@ $username = !$isGuest ? Yii::$app->user->identity->username : '';
 .style-dropdown-parent a {
     cursor: pointer;
 }
+
+.nav-actions {
+    flex-wrap: nowrap !important;
+}
+
+.nav-actions .logout-form {
+    min-width: 0;      
+    flex-shrink: 1;
+}
+
+.nav-actions .logout-btn {
+    white-space: nowrap;   
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+}
+
+.nav-actions .burger {
+    flex-shrink: 0;      
+    position: relative;
+    z-index: 20 !important ;           
+    min-width: 34px;
+    min-height: 34px;
+}
+
+.nav-actions .logout-form,
+.nav-actions .call-us {
+    position: relative;
+    z-index: 5;             
+}
+
+@media (max-width: 575.98px) {
+    .nav-actions .logout-btn {
+        padding-left: 0.6rem !important;
+        padding-right: 0.6rem !important;
+        font-size: 0.8rem;
+    }
+}
 </style>
 
 <script>
-// Window close interceptor to keep dashboard dropdown blocks handling cleanly
 window.addEventListener('click', function(){
     document.querySelectorAll('.custom-menu-box').forEach(el => el.classList.add('d-none'));
 });
