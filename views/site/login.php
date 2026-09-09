@@ -34,6 +34,7 @@ use yii\helpers\Url;
                             <div class="login-panel-overlay"></div>
 
                             <div class="login-panel-content">
+                                <div></div>
                                 <div>
                                     <h2 class=" fw-bold mb-3">
                                         Welcome<br>Back
