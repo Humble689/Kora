@@ -2163,114 +2163,110 @@ public function actionPrintTermReport($id)
     ]);
 }
 
-    
-    public function actionTeacherGrading()
-    {
-        if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['TEACHER', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
-            return $this->redirect(['site/login']);
-        }
-
-        $teacherId = Yii::$app->user->identity->id;
-        $schoolId = $this->requireWorkingSchoolId();
-        $request = Yii::$app->request;
-
-        $assignments = Yii::$app->db->createCommand(
-            'SELECT id, class_level, subject_name FROM teacher_assignments WHERE teacher_id = :tid AND school_id = :sid'
-        )->bindValues([':tid' => $teacherId, ':sid' => $schoolId])->queryAll();
-
-        $selectedAssignmentId = (int)$request->get('assignment_id', 0);
-        $selectedTerm = $request->get('term', 'TERM_1');
-        $availableYears = Yii::$app->db->createCommand(
-            'SELECT DISTINCT academic_year FROM academic_marks WHERE school_id = :sid ORDER BY academic_year DESC'
-        )->bindValue(':sid', $schoolId)->queryColumn();
-        if (empty($availableYears)) {
-            $availableYears = [(int) date('Y')];
-        }
-        $academicYear = (int) $request->get('year', $availableYears[0]);
-        if ($academicYear < 2020 || $academicYear > 2100) {
-            $academicYear = (int) $availableYears[0];
-        }
-
-        $activeAssignment = null;
-        $studentsList = [];
-        $existingMarks = [];
-
-        if (!empty($assignments)) {
-            $activeAssignment = $assignments[0];
-            foreach ($assignments as $asg) {
-                if ((int)$asg['id'] === $selectedAssignmentId) {
-                    $activeAssignment = $asg;
-                    break;
-                }
-            }
-
-            $classLevel = $activeAssignment['class_level'];
-            $subjectName = $activeAssignment['subject_name'];
-
-            $studentQuery = Students::find()
-                ->where(['school_id' => $schoolId, 'class_level' => $classLevel, 'status' => 'ACTIVE']);
-
-            if (strpos($classLevel, 'Primary') !== false) {
-            } 
-            elseif (strpos($classLevel, 'Senior 1') !== false || strpos($classLevel, 'Senior 2') !== false || strpos($classLevel, 'Senior 3') !== false || strpos($classLevel, 'Senior 4') !== false) {
-                
-                $compulsoryOLevel = ['Mathematics', 'English', 'Biology', 'Chemistry', 'Physics', 'History', 'Geography', 'Entrepreneurship'];
-                
-                if (!in_array($subjectName, $compulsoryOLevel)) {
-                    // Optionals: Filter strictly for students who have this elective assigned
-                    $studentQuery->andWhere(['ilike', 'optional_subjects', $subjectName]);
-                }
-            } 
-            elseif (strpos($classLevel, 'Senior 5') !== false || strpos($classLevel, 'Senior 6') !== false) {
-                // A-Level Combinations: Filter strictly for core combination letters 
-                if (!in_array($subjectName, ['General Paper', 'Sub-Math', 'Sub-ICT'])) {
-                    $subjectLetter = '';
-                    if ($subjectName === 'Physics') $subjectLetter = 'P';
-                    elseif ($subjectName === 'Chemistry') $subjectLetter = 'C';
-                    elseif ($subjectName === 'Mathematics') $subjectLetter = 'M';
-                    elseif ($subjectName === 'Biology') $subjectLetter = 'B';
-                    elseif ($subjectName === 'History') $subjectLetter = 'H';
-                    elseif ($subjectName === 'Economics') $subjectLetter = 'E';
-                    elseif ($subjectName === 'Geography') $subjectLetter = 'G';
-                    elseif ($subjectName === 'Literature') $subjectLetter = 'L';
-
-                    if (!empty($subjectLetter)) {
-                        $studentQuery->andWhere(['ilike', 'a_level_combination', $subjectLetter]);
-                    }
-                }
-            }
-
-            $studentsList = $studentQuery->orderBy(['name' => SORT_ASC])->all();
-
-            $marksRows = Yii::$app->db->createCommand(
-                'SELECT student_id, bot_mark, mot_mark, eot_mark, teacher_comment, dos_feedback, bot_status, mot_status, eot_status 
-                 FROM academic_marks 
-                 WHERE school_id = :sid AND class_level = :cls AND subject_name = :sub AND term = :trm AND academic_year = :yr'
-            )->bindValues([
-                ':sid' => $schoolId,
-                ':cls' => $activeAssignment['class_level'],
-                ':sub' => $activeAssignment['subject_name'],
-                ':trm' => $selectedTerm,
-                ':yr'  => $academicYear
-            ])->queryAll();
-
-            foreach ($marksRows as $row) {
-                $existingMarks[$row['student_id']] = $row;
-            }
-
-
-        return $this->render('teacher_grading', [
-            'assignments' => $assignments,
-            'activeAssignment' => $activeAssignment,
-            'selectedTerm' => $selectedTerm,
-            'selectedYear' => $academicYear,
-            'availableYears' => $availableYears,
-            'studentsList' => $studentsList,
-            'existingMarks' => $existingMarks,
-        ]);
+public function actionTeacherGrading()
+{
+    if (Yii::$app->user->isGuest || !in_array(Yii::$app->user->identity->role, ['TEACHER', 'SCHOOL_ADMIN', 'SUPER_ADMIN'])) {
+        return $this->redirect(['site/login']);
     }
-    
+
+    $teacherId = Yii::$app->user->identity->id;
+    $schoolId = $this->requireWorkingSchoolId();
+    $request = Yii::$app->request;
+
+    $assignments = Yii::$app->db->createCommand(
+        'SELECT id, class_level, subject_name FROM teacher_assignments WHERE teacher_id = :tid AND school_id = :sid'
+    )->bindValues([':tid' => $teacherId, ':sid' => $schoolId])->queryAll();
+
+    $selectedAssignmentId = (int)$request->get('assignment_id', 0);
+    $selectedTerm = $request->get('term', 'TERM_1');
+    $availableYears = Yii::$app->db->createCommand(
+        'SELECT DISTINCT academic_year FROM academic_marks WHERE school_id = :sid ORDER BY academic_year DESC'
+    )->bindValue(':sid', $schoolId)->queryColumn();
+    if (empty($availableYears)) {
+        $availableYears = [(int) date('Y')];
     }
+    $academicYear = (int) $request->get('year', $availableYears[0]);
+    if ($academicYear < 2020 || $academicYear > 2100) {
+        $academicYear = (int) $availableYears[0];
+    }
+
+    $activeAssignment = null;
+    $studentsList = [];
+    $existingMarks = [];
+
+    if (!empty($assignments)) {
+        $activeAssignment = $assignments[0];
+        foreach ($assignments as $asg) {
+            if ((int)$asg['id'] === $selectedAssignmentId) {
+                $activeAssignment = $asg;
+                break;
+            }
+        }
+
+        $classLevel = $activeAssignment['class_level'];
+        $subjectName = $activeAssignment['subject_name'];
+
+        $studentQuery = Students::find()
+            ->where(['school_id' => $schoolId, 'class_level' => $classLevel, 'status' => 'ACTIVE']);
+
+        if (strpos($classLevel, 'Primary') !== false) {
+        }
+        elseif (strpos($classLevel, 'Senior 1') !== false || strpos($classLevel, 'Senior 2') !== false || strpos($classLevel, 'Senior 3') !== false || strpos($classLevel, 'Senior 4') !== false) {
+
+            $compulsoryOLevel = ['Mathematics', 'English', 'Biology', 'Chemistry', 'Physics', 'History', 'Geography', 'Entrepreneurship'];
+
+            if (!in_array($subjectName, $compulsoryOLevel)) {
+                $studentQuery->andWhere(['ilike', 'optional_subjects', $subjectName]);
+            }
+        }
+        elseif (strpos($classLevel, 'Senior 5') !== false || strpos($classLevel, 'Senior 6') !== false) {
+            if (!in_array($subjectName, ['General Paper', 'Sub-Math', 'Sub-ICT'])) {
+                $subjectLetter = '';
+                if ($subjectName === 'Physics') $subjectLetter = 'P';
+                elseif ($subjectName === 'Chemistry') $subjectLetter = 'C';
+                elseif ($subjectName === 'Mathematics') $subjectLetter = 'M';
+                elseif ($subjectName === 'Biology') $subjectLetter = 'B';
+                elseif ($subjectName === 'History') $subjectLetter = 'H';
+                elseif ($subjectName === 'Economics') $subjectLetter = 'E';
+                elseif ($subjectName === 'Geography') $subjectLetter = 'G';
+                elseif ($subjectName === 'Literature') $subjectLetter = 'L';
+
+                if (!empty($subjectLetter)) {
+                    $studentQuery->andWhere(['ilike', 'a_level_combination', $subjectLetter]);
+                }
+            }
+        }
+
+        $studentsList = $studentQuery->orderBy(['name' => SORT_ASC])->all();
+
+        $marksRows = Yii::$app->db->createCommand(
+            'SELECT student_id, bot_mark, mot_mark, eot_mark, teacher_comment, dos_feedback, bot_status, mot_status, eot_status 
+             FROM academic_marks 
+             WHERE school_id = :sid AND class_level = :cls AND subject_name = :sub AND term = :trm AND academic_year = :yr'
+        )->bindValues([
+            ':sid' => $schoolId,
+            ':cls' => $activeAssignment['class_level'],
+            ':sub' => $activeAssignment['subject_name'],
+            ':trm' => $selectedTerm,
+            ':yr'  => $academicYear
+        ])->queryAll();
+
+        foreach ($marksRows as $row) {
+            $existingMarks[$row['student_id']] = $row;
+        }
+    } 
+
+    return $this->render('teacher_grading', [
+        'assignments' => $assignments,
+        'activeAssignment' => $activeAssignment,
+        'selectedTerm' => $selectedTerm,
+        'selectedYear' => $academicYear,
+        'availableYears' => $availableYears,
+        'studentsList' => $studentsList,
+        'existingMarks' => $existingMarks,
+        // 'hasAssignments' => !empty($assignments),
+    ]);
+}
 public function actionSubmitMarks()
 {
     if (Yii::$app->request->isPost && !Yii::$app->user->isGuest) {

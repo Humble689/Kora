@@ -180,7 +180,7 @@ function columnStatusMeta(string $status): array {
                             <?php endif; ?>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody> 
                         <?php $rowNum = 1; foreach ($studentsList as $st):
                             $botStatus = $existingMarks[$st->id]['bot_status'] ?? 'NOT_SUBMITTED';
                             $motStatus = $existingMarks[$st->id]['mot_status'] ?? 'NOT_SUBMITTED';
@@ -584,7 +584,6 @@ document.addEventListener("DOMContentLoaded", function() {
         font-weight: 600;
     }
 
-    /* ===== Table ===== */
     #teacherGradingTable thead th {
         background: var(--kora-blue-900);
         color: rgba(255, 255, 255, 0.9);
@@ -699,7 +698,6 @@ document.addEventListener("DOMContentLoaded", function() {
         }
     }
 
-    /* ===== Empty state ===== */
     .tg-empty-alert {
         background: #fff8e6;
         border: 1px solid #f5d78e;

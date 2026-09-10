@@ -15,10 +15,11 @@ $this->title = 'Onboard New Multi-Tenant Institution';
                 <h3 class="fw-bold mb-1 text-dark"><?= $this->title ?></h3>
                 <p class="text-muted small">Initialize campus servers, configure tuition constraints, and provision the Master Administrator profile.</p>
             </div>
+            
 
             <?php $form = ActiveForm::begin([
                 'id' => 'school-onboarding-form', 
-                'layout' => 'horizontal',
+                'layout' => 'default',
                 'fieldConfig' => [
                     'template' => "{label}\n{input}\n{error}",
                     'labelOptions' => ['class' => 'form-label fw-semibold text-secondary small'],
