@@ -39,11 +39,14 @@ $config = [
     'aliases' => [
         '@bower' => '@vendor/bower-asset',
         '@npm'   => '@vendor/npm-asset',
+        '@webroot' => dirname(__DIR__) . '/web',
+        '@web' => getenv('VERCEL_BASE_URL') ?: '',
     ],
     'components' => [
         'request' => [
             // !!! insert a secret key in the following (if it is empty) - this is required by cookie validation
             'cookieValidationKey' => getenv('COOKIE_VALIDATION_KEY') ?: 'y2MjESLvLfi_faHut6EhXaRKR9FuGnEz',
+            'scriptUrl' => getenv('VERCEL') ? '/' : null,
         ],
         'cache' => [
             'class' => \yii\caching\FileCache::class,
