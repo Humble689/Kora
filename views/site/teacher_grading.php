@@ -429,7 +429,6 @@ document.addEventListener("DOMContentLoaded", function() {
         font-size: 0.88rem;
     }
 
-    /* ===== Cards ===== */
     .tg-card, .tg-toolbar-card, .tg-table-card {
         background: #fff;
         border: 1px solid var(--kora-border) !important;
@@ -465,7 +464,6 @@ document.addEventListener("DOMContentLoaded", function() {
         color: #fff;
     }
 
-    /* ===== Class badge + search ===== */
     .tg-class-badge {
         display: inline-flex;
         align-items: center;

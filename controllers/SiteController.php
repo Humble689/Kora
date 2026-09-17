@@ -1321,8 +1321,8 @@ public function actionAssignDevice()
 public function actionCanteenDebit()
 {
     Yii::$app->response->format = Response::FORMAT_JSON;
-    $request = Yii::$app->request;if ($this->tooManyAttemptsForUser('canteen_debit', 20, 60, 900)) {
-    return ['success' => false, 'message' => 'Too many requests. Please wait 15 minutes and try again.'];
+    $request = Yii::$app->request;if ($this->tooManyAttemptsForUser('canteen_debit', 20, 60, 180)) {
+    return ['success' => false, 'message' => 'Too many requests. Please wait 3 minutes and try again.'];
 }
 
     $idempotencyKey = trim((string) $request->post('idempotency_key'));

@@ -2,9 +2,9 @@
 
 return [
     'class' => \yii\db\Connection::class,
-    'dsn' => 'pgsql:host=localhost;port=5432;dbname=schoolpay',
-    'username' => 'postgres',
-    'password' => 'Travis@12',
+    'dsn' => getenv('DB_DSN') ?: 'pgsql:host=localhost;port=5432;dbname=schoolpay',
+    'username' => getenv('DB_USERNAME') ?: 'postgres',
+    'password' => getenv('DB_PASSWORD') ?: '',
     'charset' => 'utf8',
 
     // Schema cache options (for production environment)

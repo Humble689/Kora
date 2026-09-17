@@ -15,6 +15,7 @@ $db = require __DIR__ . '/db.php';
 $config = [
     'id' => 'basic',
     'basePath' => dirname(__DIR__),
+    'runtimePath' => getenv('VERCEL') ? '/tmp/schoolpay-runtime' : dirname(__DIR__) . '/runtime',
     'bootstrap' => ['log'],
     'container' => [
         'singletons' => [
@@ -42,7 +43,7 @@ $config = [
     'components' => [
         'request' => [
             // !!! insert a secret key in the following (if it is empty) - this is required by cookie validation
-            'cookieValidationKey' => 'y2MjESLvLfi_faHut6EhXaRKR9FuGnEz',
+            'cookieValidationKey' => getenv('COOKIE_VALIDATION_KEY') ?: 'y2MjESLvLfi_faHut6EhXaRKR9FuGnEz',
         ],
         'cache' => [
             'class' => \yii\caching\FileCache::class,

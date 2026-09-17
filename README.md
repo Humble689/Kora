@@ -47,6 +47,25 @@ docker compose up -d
 
 The default Docker setup is available at <http://127.0.0.1:8000>.
 
+## Deploy to Vercel
+
+Push the repository to GitHub, import it into Vercel, and keep the project root at the repository root. The repository includes a PHP serverless entrypoint in `api/index.php` and Vercel routing in `vercel.json`.
+
+Configure these Vercel Environment Variables for the Production environment:
+
+```text
+YII_ENV=prod
+YII_DEBUG=false
+COOKIE_VALIDATION_KEY=<long-random-secret>
+DB_DSN=pgsql:host=<host>;port=5432;dbname=<database>;sslmode=require
+DB_USERNAME=<database-user>
+DB_PASSWORD=<database-password>
+MAIL_USERNAME=<gmail-address>
+MAIL_PASSWORD=<gmail-app-password-without-spaces>
+```
+
+Use a hosted PostgreSQL database; Vercel does not provide a persistent local database or filesystem. Do not commit `.env` files or credentials. After adding the variables, deploy from Vercel or push a new commit to trigger deployment.
+
 ## Configuration
 
 - `config/web.php` contains web application settings and the cookie validation key.
