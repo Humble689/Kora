@@ -597,6 +597,7 @@ function executeSponsorLookup() {
     .input-group.flex-column > .form-control {
         border-radius: 0.5rem !important;
         margin-bottom: 0.5rem;
+        width: 100% !important;
     }
     .input-group.flex-column > .btn {
         border-radius: 0.5rem !important;
