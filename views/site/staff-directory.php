@@ -94,6 +94,65 @@ table.staff-table { width: 100%; border-collapse: collapse; }
 .toast.success { background: #16a34a; color: #fff; }
 .toast.error { background: #dc2626; color: #fff; }
 @keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+/* --- Mobile responsiveness --- */
+@media (max-width: 576px) {
+    .staff-page { padding: 1.5rem 0; }
+    .staff-container { padding: 0 1rem; }
+    .staff-title { font-size: 1.35rem; }
+
+    .stat-row { grid-template-columns: repeat(2, 1fr); gap: 10px; margin: 1.25rem 0; }
+    .stat-card { padding: .9rem 1rem; }
+    .stat-num { font-size: 1.35rem; }
+
+    .staff-toolbar { padding: .9rem 1rem; }
+    .staff-search { flex-basis: 100%; min-width: 0; }
+    .toolbar-chips {
+        display: flex;
+        gap: .5rem;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        width: 100%;
+        padding-bottom: .25rem;
+    }
+    .toolbar-chips .filter-chip { flex-shrink: 0; }
+
+    #assignDeviceModal .modal-dialog { margin: 1rem; }
+}
+
+@media (max-width: 768px) {
+    .staff-table thead { display: none; }
+    .staff-table, .staff-table tbody, .staff-table tr, .staff-table td {
+        display: block;
+        width: 100%;
+    }
+    .staff-table tr {
+        border-bottom: 8px solid #f7f8fa;
+        padding: .5rem 0;
+    }
+    .staff-table td {
+        padding: .5rem 1.25rem;
+        border-bottom: none;
+        text-align: left !important;
+    }
+    .staff-table td[data-label]:not([data-label=""])::before {
+        content: attr(data-label);
+        display: block;
+        font-size: .68rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: .04em;
+        color: #9ca3af;
+        margin-bottom: .3rem;
+    }
+    .staff-table td.text-end {
+        text-align: left !important;
+    }
+    .actions-menu {
+        right: auto;
+        left: 0;
+    }
+}
 </style>
 
 <div class="staff-page">
@@ -132,11 +191,13 @@ table.staff-table { width: 100%; border-collapse: collapse; }
                     <i class="bi bi-search"></i>
                     <input type="text" id="staffSearchInput" placeholder="Search by name or email...">
                 </div>
-                <button type="button" class="filter-chip active" data-filter="ALL">All</button>
-                <button type="button" class="filter-chip" data-filter="ACTIVE">Active</button>
-                <button type="button" class="filter-chip" data-filter="INACTIVE">Inactive</button>
-                <button type="button" class="filter-chip" data-filter="ON_LEAVE">On Leave</button>
-                <button type="button" class="filter-chip" data-filter="TERMINATED">Terminated</button>
+                <div class="toolbar-chips">
+                    <button type="button" class="filter-chip active" data-filter="ALL">All</button>
+                    <button type="button" class="filter-chip" data-filter="ACTIVE">Active</button>
+                    <button type="button" class="filter-chip" data-filter="INACTIVE">Inactive</button>
+                    <button type="button" class="filter-chip" data-filter="ON_LEAVE">On Leave</button>
+                    <button type="button" class="filter-chip" data-filter="TERMINATED">Terminated</button>
+                </div>
             </div>
 
             <?php if (empty($allModels)): ?>
@@ -160,7 +221,7 @@ table.staff-table { width: 100%; border-collapse: collapse; }
                             $initials = strtoupper(substr($m->username, 0, 2));
                         ?>
                         <tr data-status="<?= Html::encode($m->status) ?>" data-role="<?= Html::encode($m->role) ?>" data-search="<?= Html::encode(strtolower($m->username . ' ' . $m->email)) ?>">
-                           <td>
+                           <td data-label="Staff">
                                 <div class="staff-identity">
                                     <?php if (!empty($m->profile_photo)): ?>
                                         <img src="<?= Html::encode($m->profile_photo) ?>" alt="<?= Html::encode($m->username) ?>" class="staff-avatar-img">
@@ -173,14 +234,14 @@ table.staff-table { width: 100%; border-collapse: collapse; }
                                     </div>
                                 </div>
                             </td>
-                            <td><span class="role-pill"><?= Html::encode($roleMeta[$m->role] ?? $m->role) ?></span></td>
-                            <td>
+                            <td data-label="Role"><span class="role-pill"><?= Html::encode($roleMeta[$m->role] ?? $m->role) ?></span></td>
+                            <td data-label="Status">
                                 <span class="status-pill <?= $meta['class'] ?>" id="statusPill-<?= $m->id ?>">
                                     <span class="dot" style="background: <?= $meta['dot'] ?>;"></span>
                                     <?= $meta['label'] ?>
                                 </span>
                             </td>
-                            <td class="text-end">
+                            <td data-label="" class="text-end">
                                 <?php if ($m->status !== 'TERMINATED'): ?>
                                 <div class="actions-dropdown">
                                     <button type="button" class="actions-trigger" onclick="toggleMenu(<?= $m->id ?>)">
