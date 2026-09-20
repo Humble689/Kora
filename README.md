@@ -1,4 +1,5 @@
 # KORA
+
 KORA is a Yii 2 web application for managing school payments, administration, and day-to-day school finance operations. It provides role-based tools for school administrators, bursars, teachers, canteen staff, and platform administrators.
 
 ## Features
@@ -18,7 +19,7 @@ KORA is a Yii 2 web application for managing school payments, administration, an
 
 - PHP 8.2 or newer
 - Composer
-- MySQL or MariaDB
+- Postges
 - Docker and Docker Compose, if using the containerized setup
 
 ## Installation
@@ -37,7 +38,7 @@ For a local PHP server, run:
 php yii serve --port=8080
 ```
 
-Open <http://127.0.0.1:8080>.
+Open [http://127.0.0.1:8080](http://127.0.0.1:8080).
 
 To use Docker instead:
 
@@ -45,13 +46,13 @@ To use Docker instead:
 docker compose up -d
 ```
 
-The default Docker setup is available at <http://127.0.0.1:8000>.
+The default Docker setup is available at [http://127.0.0.1:8000](http://127.0.0.1:8000).
 
-## Deploy to Vercel
+## Deploy to Render
 
-Push the repository to GitHub, import it into Vercel, and keep the project root at the repository root. The repository includes a PHP serverless entrypoint in `api/index.php` and Vercel routing in `vercel.json`.
+Push the repository to GitHub, import it into Render, and keep the project root at the repository root
 
-Configure these Vercel Environment Variables for the Production environment:
+Configure these Render Environment Variables for the Production environment:
 
 ```text
 YII_ENV=prod
@@ -64,7 +65,7 @@ MAIL_USERNAME=<gmail-address>
 MAIL_PASSWORD=<gmail-app-password-without-spaces>
 ```
 
-Use a hosted PostgreSQL database; Vercel does not provide a persistent local database or filesystem. Do not commit `.env` files or credentials. After adding the variables, deploy from Vercel or push a new commit to trigger deployment.
+Use a hosted PostgreSQL database; Do not commit `.env` files or credentials. After adding the variables, deploy from Render or push a new commit to trigger deployment.
 
 ## Configuration
 
