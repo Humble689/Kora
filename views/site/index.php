@@ -103,12 +103,12 @@ $this->registerJsFile('@web/js/custom.js', ['depends' => [\yii\web\JqueryAsset::
 
                 <div class="bg-white rounded p-4 shadow-sm text-start">
                     <label class="form-label fw-semibold text-secondary small">Student Payment Code</label>
-                    <div class="input-group">
-                        <input type="text" id="sponsorLookupCode" maxlength="10"
-                               class="form-control form-control-lg font-monospace fw-bold text-center"
-                               placeholder="0000000000" autocomplete="off">
-                        <button class="btn btn-success btn-lg fw-bold" onclick="executeSponsorLookup()">Find</button>
-                    </div>
+                        <div class="input-group flex-column flex-sm-row">
+                            <input type="text" id="sponsorLookupCode" maxlength="10"
+                                class="form-control form-control-lg font-monospace fw-bold text-center"
+                                placeholder="0000000000" autocomplete="off">
+                            <button class="btn btn-success btn-lg fw-bold" onclick="executeSponsorLookup()">Find</button>
+                        </div>
                     <div id="sponsorLookupResult" class="mt-3"></div>
                 </div>
             </div>
@@ -592,6 +592,16 @@ function executeSponsorLookup() {
         z-index: 25;
     }
 
+
+@media (max-width: 575.98px) {
+    .input-group.flex-column > .form-control {
+        border-radius: 0.5rem !important;
+        margin-bottom: 0.5rem;
+    }
+    .input-group.flex-column > .btn {
+        border-radius: 0.5rem !important;
+    }
+}
 
     @media (max-width: 767.98px) {
 
